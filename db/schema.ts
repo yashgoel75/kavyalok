@@ -17,8 +17,52 @@ const CompetitionSchema = new Schema({
     fee: { type: Number },
     judgingCriteria: [String],
     prizePool: [String],
+    customQuestions: [
+        {
+            question: { type: String, required: true },
+            type: { 
+                type: String, 
+                enum: ['text', 'number', 'mcq'], 
+                default: 'text' 
+            },
+            options: [String],
+            required: { type: Boolean, default: false }
+        }
+    ],
+
     participants: [String],
 });
+
+const CompetitionApplicationSchema = new Schema({
+    competitionId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Competition',
+        required: true
+    },
+    participantId: {
+        type: String,
+        ref: 'User',
+        required: true
+    },
+
+    responses: [
+        {
+            questionId: {
+                type: Schema.Types.ObjectId,
+                required: true
+            },
+            answer: {
+                type: Schema.Types.Mixed 
+            }
+        }
+    ],
+
+    appliedAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
 
 const CommentSchema = new Schema({
     author: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
@@ -74,6 +118,7 @@ const UserSchema = new Schema({
 UserSchema.index({ username: 1, email: 1 });
 
 export const Competition = mongoose.models.Competition || mongoose.model("Competition", CompetitionSchema)
+export const CompetitionApplication = mongoose.models.CompetitionApplication || mongoose.model("CompetitionApplication", CompetitionApplicationSchema)
 export const User = mongoose.models.User || mongoose.model("User", UserSchema);
 export const Post = mongoose.models.Post || mongoose.model("Post", PostSchema);
 export const Comment = mongoose.models.Comment || mongoose.model("Comment", CommentSchema);

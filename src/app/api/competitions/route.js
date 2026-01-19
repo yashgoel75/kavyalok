@@ -50,9 +50,19 @@ export const POST = async (req) => {
       fee: body.fee,
       judgingCriteria: body.judgingCriteria || [],
       prizePool: body.prizePool || [],
+
+      customQuestions: body.customQuestions?.map(q => ({
+        question: q.question,
+        type: q.type || "text",
+        options: q.options || [],
+        required: q.required || false
+      })) || [],
     });
 
-    return Response.json({ success: true, competition });
+    return Response.json(
+      { success: true, competition },
+      { status: 201 }
+    );
   } catch (err) {
     console.error(err);
     return Response.json(
@@ -61,6 +71,7 @@ export const POST = async (req) => {
     );
   }
 };
+
 
 export async function PATCH(req) {
   try {

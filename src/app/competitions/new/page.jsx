@@ -7,6 +7,8 @@ import { auth } from "@/lib/firebase";
 
 export default function NewCompetitionPage() {
   const [firebaseUser, setFirebaseUser] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
   const [formData, setFormData] = useState({
     coverPhoto: "",
     name: "",
@@ -23,8 +25,9 @@ export default function NewCompetitionPage() {
     fee: "",
     judgingCriteria: "[]",
     prizePool: "[]",
+
+    customQuestions: [],
   });
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -32,6 +35,8 @@ export default function NewCompetitionPage() {
     });
     return () => unsubscribe();
   }, []);
+
+  /* ------------------ Cover Photo Upload ------------------ */
 
   const handleCoverPhotoChange = async (e) => {
     const file = e.target.files?.[0];
@@ -48,8 +53,10 @@ export default function NewCompetitionPage() {
         },
         body: JSON.stringify({ folder: "competitionCovers" }),
       });
+
       const sigData = await sigRes.json();
       const { timestamp, signature, apiKey, folder } = sigData;
+
       const form = new FormData();
       form.append("file", file);
       form.append("api_key", apiKey);
@@ -61,9 +68,14 @@ export default function NewCompetitionPage() {
         `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
         { method: "POST", body: form }
       );
+
       const cloudData = await cloudRes.json();
-      if (!cloudData.secure_url) throw new Error("Cloudinary upload failed");
-      setFormData((prev) => ({ ...prev, coverPhoto: cloudData.secure_url }));
+      if (!cloudData.secure_url) throw new Error("Upload failed");
+
+      setFormData((prev) => ({
+        ...prev,
+        coverPhoto: cloudData.secure_url,
+      }));
     } catch (err) {
       console.error(err);
       alert("Cloudinary upload failed");
@@ -72,93 +84,233 @@ export default function NewCompetitionPage() {
     }
   };
 
+  /* ------------------ Custom Questions Logic ------------------ */
+
+  const addQuestion = () => {
+    setFormData((prev) => ({
+      ...prev,
+      customQuestions: [
+        ...prev.customQuestions,
+        {
+          question: "",
+          type: "text",
+          options: "",
+          required: false,
+        },
+      ],
+    }));
+  };
+
+  const updateQuestion = (index, field, value) => {
+    const updated = [...formData.customQuestions];
+    updated[index] = { ...updated[index], [field]: value };
+    setFormData((prev) => ({ ...prev, customQuestions: updated }));
+  };
+
+  const removeQuestion = (index) => {
+    const updated = [...formData.customQuestions];
+    updated.splice(index, 1);
+    setFormData((prev) => ({ ...prev, customQuestions: updated }));
+  };
+
+  /* ------------------ Submit ------------------ */
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     const payload = {
       ...formData,
       participantLimit: Number(formData.participantLimit || 0),
       fee: Number(formData.fee || 0),
       judgingCriteria: JSON.parse(formData.judgingCriteria || "[]"),
       prizePool: JSON.parse(formData.prizePool || "[]"),
+
+      customQuestions: formData.customQuestions.map((q) => ({
+        question: q.question,
+        type: q.type,
+        required: q.required,
+        options:
+          q.type === "mcq"
+            ? q.options.split(",").map((o) => o.trim())
+            : [],
+      })),
     };
+
     const res = await fetch("/api/competitions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+
     const data = await res.json();
     alert(data.success ? "Competition Created!" : data.error);
   };
 
+  /* ------------------ UI ------------------ */
+
   return (
     <div className="p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-semibold mb-4">Create Competition</h1>
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
+        {/* Cover Photo */}
+        <div>
           <label className="font-medium">Cover Photo</label>
           <input type="file" accept="image/*" onChange={handleCoverPhotoChange} />
           {isUploadingImage && <p>Uploading...</p>}
           {formData.coverPhoto && (
-            <img src={formData.coverPhoto} className="w-full h-48 object-cover rounded border" alt="cover" />
+            <img
+              src={formData.coverPhoto}
+              className="w-full h-48 object-cover rounded border mt-2"
+              alt="cover"
+            />
           )}
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Organization/Society Name</label>
-          <input className="border p-2 rounded" value={formData.organization} onChange={(e) => setFormData({ ...formData, organization: e.target.value })} required />
+
+        {[
+          ["Organization/Society", "organization"],
+          ["Name", "name"],
+          ["Mode", "mode"],
+          ["Venue", "venue"],
+          ["Category", "category"],
+        ].map(([label, key]) => (
+          <div key={key}>
+            <label className="font-medium">{label}</label>
+            <input
+              className="border p-2 rounded w-full"
+              value={formData[key]}
+              onChange={(e) =>
+                setFormData({ ...formData, [key]: e.target.value })
+              }
+              required={key === "name" || key === "organization"}
+            />
+          </div>
+        ))}
+
+        <textarea
+          className="border p-2 rounded"
+          placeholder="About"
+          value={formData.about}
+          onChange={(e) =>
+            setFormData({ ...formData, about: e.target.value })
+          }
+          required
+        />
+
+        {/* Dates / Numbers */}
+        <input type="number" placeholder="Participant Limit" className="border p-2 rounded"
+          value={formData.participantLimit}
+          onChange={(e) =>
+            setFormData({ ...formData, participantLimit: e.target.value })
+          }
+        />
+
+        <input type="date" className="border p-2 rounded"
+          value={formData.dateStart}
+          onChange={(e) =>
+            setFormData({ ...formData, dateStart: e.target.value })
+          }
+        />
+
+        <input type="date" className="border p-2 rounded"
+          value={formData.dateEnd}
+          onChange={(e) =>
+            setFormData({ ...formData, dateEnd: e.target.value })
+          }
+        />
+
+        <input type="time" className="border p-2 rounded"
+          value={formData.timeStart}
+          onChange={(e) =>
+            setFormData({ ...formData, timeStart: e.target.value })
+          }
+        />
+
+        <input type="time" className="border p-2 rounded"
+          value={formData.timeEnd}
+          onChange={(e) =>
+            setFormData({ ...formData, timeEnd: e.target.value })
+          }
+        />
+
+        <input type="number" placeholder="Fee" className="border p-2 rounded"
+          value={formData.fee}
+          onChange={(e) =>
+            setFormData({ ...formData, fee: e.target.value })
+          }
+        />
+
+        {/* Custom Questions */}
+        <div className="border rounded p-4 space-y-4">
+          <h2 className="font-semibold">Custom Application Questions</h2>
+
+          {formData.customQuestions.map((q, i) => (
+            <div key={i} className="border rounded p-3 space-y-2">
+              <input
+                className="border p-2 rounded w-full"
+                placeholder="Question"
+                value={q.question}
+                onChange={(e) =>
+                  updateQuestion(i, "question", e.target.value)
+                }
+              />
+
+              <select
+                className="border p-2 rounded w-full"
+                value={q.type}
+                onChange={(e) =>
+                  updateQuestion(i, "type", e.target.value)
+                }
+              >
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="mcq">MCQ</option>
+              </select>
+
+              {q.type === "mcq" && (
+                <input
+                  className="border p-2 rounded w-full"
+                  placeholder="Options (comma separated)"
+                  value={q.options}
+                  onChange={(e) =>
+                    updateQuestion(i, "options", e.target.value)
+                  }
+                />
+              )}
+
+              <label className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  checked={q.required}
+                  onChange={(e) =>
+                    updateQuestion(i, "required", e.target.checked)
+                  }
+                />
+                Required
+              </label>
+
+              <button
+                type="button"
+                className="text-red-600 text-sm"
+                onClick={() => removeQuestion(i)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addQuestion}
+            className="bg-gray-200 px-3 py-1 rounded"
+          >
+            + Add Question
+          </button>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Name</label>
-          <input className="border p-2 rounded" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">About</label>
-          <textarea className="border p-2 rounded" value={formData.about} onChange={(e) => setFormData({ ...formData, about: e.target.value })} required />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Participant Limit</label>
-          <input type="number" className="border p-2 rounded" value={formData.participantLimit} onChange={(e) => setFormData({ ...formData, participantLimit: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Mode</label>
-          <input className="border p-2 rounded" value={formData.mode} onChange={(e) => setFormData({ ...formData, mode: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Venue</label>
-          <input className="border p-2 rounded" value={formData.venue} onChange={(e) => setFormData({ ...formData, venue: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Start Date</label>
-          <input type="date" className="border p-2 rounded" value={formData.dateStart} onChange={(e) => setFormData({ ...formData, dateStart: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">End Date</label>
-          <input type="date" className="border p-2 rounded" value={formData.dateEnd} onChange={(e) => setFormData({ ...formData, dateEnd: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Start Time</label>
-          <input type="time" className="border p-2 rounded" value={formData.timeStart} onChange={(e) => setFormData({ ...formData, timeStart: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">End Time</label>
-          <input type="time" className="border p-2 rounded" value={formData.timeEnd} onChange={(e) => setFormData({ ...formData, timeEnd: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Category</label>
-          <input className="border p-2 rounded" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Fee</label>
-          <input type="number" className="border p-2 rounded" value={formData.fee} onChange={(e) => setFormData({ ...formData, fee: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Judging Criteria (JSON array)</label>
-          <textarea className="border p-2 rounded" value={formData.judgingCriteria} onChange={(e) => setFormData({ ...formData, judgingCriteria: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="font-medium">Prize Pool (JSON array)</label>
-          <textarea className="border p-2 rounded" value={formData.prizePool} onChange={(e) => setFormData({ ...formData, prizePool: e.target.value })} />
-        </div>
-        <button type="submit" className="bg-black text-white p-2 rounded mt-2">Submit</button>
+
+        <button type="submit" className="bg-black text-white p-2 rounded">
+          Submit
+        </button>
       </form>
     </div>
   );

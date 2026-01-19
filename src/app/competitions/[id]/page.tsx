@@ -15,6 +15,7 @@ interface Competition {
   coverPhoto: string;
   name: string;
   about: string;
+  organization: string;
   participantLimit: number;
   mode: string;
   dateStart: string;
@@ -26,6 +27,13 @@ interface Competition {
   judgingCriteria: string[];
   prizePool: string[];
   participants: string[];
+  customQuestions: {
+    _id: string;
+    question: string;
+    type: "text" | "number" | "mcq";
+    options?: string[];
+    required?: boolean;
+  }[];
 }
 
 export default function CompetitionDetailPage() {
@@ -40,6 +48,15 @@ export default function CompetitionDetailPage() {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [patched, setPatched] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleAnswerChange = (questionId: string, value: any) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: value,
+    }));
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -104,24 +121,43 @@ export default function CompetitionDetailPage() {
   }
   const [isNowRegistered, setIsNowRegistered] = useState(false);
 
-  const handleRegisterNow = async () => {
+  const handleApply = async () => {
+    if (!firebaseUser) {
+      router.push("/auth/login");
+      return;
+    }
+
+    setSubmitting(true);
+
     try {
-      const res = await fetch(`/api/competitions`, {
-        method: "PATCH",
+      const responses = Object.entries(answers).map(([questionId, answer]) => ({
+        questionId,
+        answer,
+      }));
+
+      const res = await fetch(`/api/competitions/${competitionId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          competitionId: competitionId,
-          email: firebaseUser?.email,
+          participantId: firebaseUser.email, // or your mapped DB user id
+          responses,
         }),
       });
+
       const data = await res.json();
-      console.log(data);
-      if (data.success) {
-        alert("Thank you for registering with Kavyalok!");
-        setIsNowRegistered(true);
+
+      if (!data.success) {
+        alert(data.error || "Failed to apply");
+        return;
       }
-    } catch (patchErr) {
-      console.error("Failed to update participant:", patchErr);
+
+      alert("Application submitted successfully 🎉");
+      setIsNowRegistered(true);
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -188,6 +224,7 @@ export default function CompetitionDetailPage() {
     about,
     participantLimit,
     mode,
+    organization,
     dateStart,
     dateEnd,
     timeStart,
@@ -242,8 +279,63 @@ export default function CompetitionDetailPage() {
                 </ul>
               </section>
             )}
-            Winner will get featured on KavyaRang's annual magazine and will get
-            to participate in 3 MUNs with us.
+
+            {competition.customQuestions?.length > 0 && !isRegistered && (
+              <section className="mt-8 space-y-5">
+                <h2 className="text-2xl font-semibold">
+                  Application Questions
+                </h2>
+
+                {competition.customQuestions.map((q) => (
+                  <div key={q._id} className="space-y-2">
+                    <label className="block font-medium">
+                      {q.question}
+                      {q.required && <span className="text-red-500"> *</span>}
+                    </label>
+
+                    {q.type === "text" && (
+                      <textarea
+                        className="w-full border rounded-md p-2"
+                        rows={3}
+                        onChange={(e) =>
+                          handleAnswerChange(q._id, e.target.value)
+                        }
+                      />
+                    )}
+
+                    {q.type === "number" && (
+                      <input
+                        type="number"
+                        className="w-full border rounded-md p-2"
+                        onChange={(e) =>
+                          handleAnswerChange(q._id, Number(e.target.value))
+                        }
+                      />
+                    )}
+
+                    {q.type === "mcq" && (
+                      <select
+                        className="w-full border rounded-md p-2"
+                        defaultValue=""
+                        onChange={(e) =>
+                          handleAnswerChange(q._id, e.target.value)
+                        }
+                      >
+                        <option value="" disabled>
+                          Select an option
+                        </option>
+                        {q.options?.map((opt, i) => (
+                          <option key={i} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                ))}
+              </section>
+            )}
+
             <div className="mt-6">
               {isRegistered || isNowRegistered ? (
                 <button className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed">
@@ -258,7 +350,7 @@ export default function CompetitionDetailPage() {
                 </button>
               ) : (
                 <button
-                  onClick={handleRegisterNow}
+                  onClick={handleApply}
                   className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md transition cursor-pointer"
                 >
                   Register Now
@@ -269,6 +361,9 @@ export default function CompetitionDetailPage() {
           <aside className="space-y-4 p-5 border rounded-lg bg-gray-50 shadow-sm">
             <h3 className="text-lg font-semibold mb-3">Event Details</h3>
             <div className="space-y-2 text-gray-700">
+              <p>
+                <strong>Organization:</strong> {organization}
+              </p>
               <p>
                 <strong>Mode:</strong> {mode}
               </p>

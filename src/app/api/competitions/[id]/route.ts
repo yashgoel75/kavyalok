@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Competition } from "../../../../../db/schema";
 import { register } from "@/instrumentation";
+import { CompetitionApplication } from "../../../../../db/schema";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -29,30 +30,73 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
 }
 
 
-export async function PUT(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   const { id } = await context.params;
+
   try {
     await register();
     const body = await req.json();
 
-    const updated = await Competition.findByIdAndUpdate(id, body, { new: true });
+    const { participantId, responses } = body;
 
-    if (!updated) {
+    if (!participantId) {
+      return NextResponse.json(
+        { success: false, error: "participantId is required" },
+        { status: 400 }
+      );
+    }
+
+    const competition = await Competition.findById(id);
+    if (!competition) {
       return NextResponse.json(
         { success: false, error: "Competition not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ success: true, data: updated });
-  } catch (err: any) {
-    console.error("Update competition error:", err);
+    const alreadyApplied = await CompetitionApplication.findOne({
+      competitionId: id,
+      participantId,
+    });
+
+    if (alreadyApplied) {
+      return NextResponse.json(
+        { success: false, error: "Already applied to this competition" },
+        { status: 409 }
+      );
+    }
+
+    const application = await CompetitionApplication.create({
+      competitionId: id,
+      participantId,
+      responses: responses || [],
+    });
+
+    if (!competition.participants.includes(participantId)) {
+      competition.participants.push(participantId);
+      await competition.save();
+    }
+
     return NextResponse.json(
-      { success: false, error: err.message },
+      {
+        success: true,
+        message: "Applied successfully",
+        applicationId: application._id,
+      },
+      { status: 201 }
+    );
+  } catch (err: any) {
+    console.error("Apply to competition error:", err);
+    return NextResponse.json(
+      { success: false, error: err.message || "Server error" },
       { status: 500 }
     );
   }
 }
+
 
 
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
