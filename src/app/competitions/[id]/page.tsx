@@ -280,7 +280,7 @@ export default function CompetitionDetailPage() {
       )}
       <main className="max-w-6xl mx-auto px-4 py-12 min-h-[80vh]">
         <div className="flex items-center justify-between mb-10">
-          <h1 className="text-4xl font-bold">{name} ✍️</h1>
+          <h1 className="text-4xl font-bold">{name}</h1>
           <TimerPill dateEnd={dateEnd} />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
