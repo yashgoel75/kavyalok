@@ -42,6 +42,7 @@ export default function CompetitionDetailPage() {
   const competitionId = typeof params.id === "string" ? params.id : "";
   const searchParams = useSearchParams();
   const paymentStatus = searchParams.get("payment");
+  const [user, setUser] = useState<User | null>(null);
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +100,20 @@ export default function CompetitionDetailPage() {
     }
     fetchCompetition();
   }, [competitionId]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user?.email) {
+        return;
+      } else {
+        const timer = setTimeout(() => {
+          router.replace("/auth/login");
+        }, 1500);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   function TimerPill({ dateEnd }: { dateEnd: string }) {
     const deadline = new Date(dateEnd).getTime();

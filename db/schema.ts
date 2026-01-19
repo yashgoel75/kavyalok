@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const CompetitionSchema = new Schema({
     coverPhoto: { type: String },
     name: { type: String, required: true },
-    organization: {type: String, required: true},
+    organization: {type: String, required: false},
     about: { type: String, required: true },
     participantLimit: { type: Number },
     mode: { type: String },

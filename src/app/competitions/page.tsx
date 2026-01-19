@@ -5,6 +5,9 @@ import Navigation from "@/components/navigation/page";
 import Footer from "@/components/footer/page";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
 
 interface Competition {
   _id: string;
@@ -24,8 +27,24 @@ interface Competition {
 }
 
 export default function CompetitionsPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user?.email) {
+        return;
+      } else {
+        const timer = setTimeout(() => {
+          router.replace("/auth/login");
+        }, 1500);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Timer component for each competition
   function TimerPill({ dateEnd }: { dateEnd: string }) {
