@@ -36,6 +36,7 @@ export const POST = async (req) => {
 
     const competition = await Competition.create({
       coverPhoto: body.coverPhoto || "",
+      organization: body.organization,
       name: body.name,
       about: body.about,
       participantLimit: body.participantLimit,

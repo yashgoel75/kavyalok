@@ -102,6 +102,28 @@ export default function CompetitionDetailPage() {
       </span>
     );
   }
+  const [isNowRegistered, setIsNowRegistered] = useState(false);
+
+  const handleRegisterNow = async () => {
+    try {
+      const res = await fetch(`/api/competitions`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: competitionId,
+          email: firebaseUser?.email,
+        }),
+      });
+      const data = await res.json();
+      console.log(data);
+      if (data.success) {
+        alert("Thank you for registering with Kavyalok!");
+        setIsNowRegistered(true);
+      }
+    } catch (patchErr) {
+      console.error("Failed to update participant:", patchErr);
+    }
+  };
 
   const handlePayNow = async () => {
     if (!competition) return;
@@ -195,11 +217,13 @@ export default function CompetitionDetailPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <div className="md:col-span-2 space-y-6">
-            <img
-              src={coverPhoto}
-              alt={name}
-              className="rounded-lg shadow-md w-full h-auto"
-            />
+            {coverPhoto !== "" ? (
+              <img
+                src={coverPhoto}
+                alt={name}
+                className="rounded-lg shadow-md w-full h-auto"
+              />
+            ) : null}
             <section>
               <h2 className="text-2xl font-semibold mb-3">
                 About the Competition
@@ -221,16 +245,23 @@ export default function CompetitionDetailPage() {
             Winner will get featured on KavyaRang's annual magazine and will get
             to participate in 3 MUNs with us.
             <div className="mt-6">
-              {isRegistered ? (
+              {isRegistered || isNowRegistered ? (
                 <button className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed">
                   Already Registered
                 </button>
-              ) : (
+              ) : fee !== 0 ? (
                 <button
                   onClick={handlePayNow}
                   className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md transition cursor-pointer"
                 >
                   Pay Now
+                </button>
+              ) : (
+                <button
+                  onClick={handleRegisterNow}
+                  className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md transition cursor-pointer"
+                >
+                  Register Now
                 </button>
               )}
             </div>

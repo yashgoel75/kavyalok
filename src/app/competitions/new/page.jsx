@@ -10,6 +10,7 @@ export default function NewCompetitionPage() {
   const [formData, setFormData] = useState({
     coverPhoto: "",
     name: "",
+    organization: "",
     about: "",
     participantLimit: "",
     mode: "",
@@ -100,6 +101,10 @@ export default function NewCompetitionPage() {
           {formData.coverPhoto && (
             <img src={formData.coverPhoto} className="w-full h-48 object-cover rounded border" alt="cover" />
           )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="font-medium">Organization/Society Name</label>
+          <input className="border p-2 rounded" value={formData.organization} onChange={(e) => setFormData({ ...formData, organization: e.target.value })} required />
         </div>
         <div className="flex flex-col gap-1">
           <label className="font-medium">Name</label>
