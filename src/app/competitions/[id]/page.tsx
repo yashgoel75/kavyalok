@@ -139,7 +139,7 @@ export default function CompetitionDetailPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          participantId: firebaseUser.email, // or your mapped DB user id
+          participantId: firebaseUser.email,
           responses,
         }),
       });
@@ -169,6 +169,10 @@ export default function CompetitionDetailPage() {
     }
 
     try {
+      const responses = Object.entries(answers).map(([questionId, answer]) => ({
+        questionId,
+        answer,
+      }));
       const token = await getFirebaseToken();
       const paymentData = {
         amount: competition.fee.toFixed(2),
@@ -176,6 +180,7 @@ export default function CompetitionDetailPage() {
         email: firebaseUser.email,
         phone: firebaseUser.phoneNumber || "",
         productinfo: competition._id,
+        responses: responses,
       };
 
       const res = await fetch("/api/payu/checkout", {
@@ -265,7 +270,10 @@ export default function CompetitionDetailPage() {
               <h2 className="text-2xl font-semibold mb-3">
                 About the Competition
               </h2>
-              <p className="text-gray-700 leading-relaxed">{about}</p>
+              <p
+                className="text-gray-700 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: about }}
+              ></p>
             </section>
             {judgingCriteria?.length > 0 && (
               <section>

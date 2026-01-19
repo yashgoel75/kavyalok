@@ -81,8 +81,10 @@ export default function CompetitionsPage() {
     fetchCompetitions();
   }, []);
 
-  if (loading) return <p className="text-center mt-12">Loading competitions...</p>;
-  if (competitions.length === 0) return <p className="text-center mt-12">No competitions available.</p>;
+  if (loading)
+    return <p className="text-center mt-12">Loading competitions...</p>;
+  if (competitions.length === 0)
+    return <p className="text-center mt-12">No competitions available.</p>;
 
   return (
     <>
@@ -90,7 +92,9 @@ export default function CompetitionsPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-12 min-h-[85vh]">
         <div className="mb-12">
-          <h1 className="text-3xl font-semibold mb-2">Embrace the Challenge ✍️</h1>
+          <h1 className="text-3xl font-semibold mb-2">
+            Embrace the Challenge ✍️
+          </h1>
           <p className="text-lg text-gray-600">
             Seize every literary chance to write, compete, and shine.
           </p>
@@ -100,12 +104,11 @@ export default function CompetitionsPage() {
           <div className="text-xl font-bold my-2">Upcoming Events</div>
 
           <div className="space-y-6">
-            {competitions.map((comp) => (
+            {[...competitions].reverse().map((comp) => (
               <div
                 key={comp._id}
                 className="rounded-md space-y-3 p-4 w-full border border-gray-200 gap-6"
               >
-                {/* Use standard <img> to show original URL without blur/webp */}
                 {comp.coverPhoto && (
                   <img
                     src={comp.coverPhoto}
@@ -121,11 +124,19 @@ export default function CompetitionsPage() {
                       <TimerPill dateEnd={comp.dateEnd} />
                     </div>
 
-                    <p className="text-gray-600 mt-2 leading-relaxed">{comp.about}</p>
+                    <p
+                      className="text-gray-600 mt-2 leading-relaxed"
+                      dangerouslySetInnerHTML={{
+                        __html:
+                          comp.about?.slice(0, 120) +
+                          (comp.about?.length > 120 ? "..." : ""),
+                      }}
+                    ></p>
 
                     <div className="mt-4 text-sm text-gray-600 space-y-1">
                       <p>
-                        <strong>Participants Limit:</strong> {comp.participantLimit}
+                        <strong>Participants Limit:</strong>{" "}
+                        {comp.participantLimit}
                       </p>
                       <p>
                         <strong>Mode:</strong> {comp.mode}
@@ -142,7 +153,8 @@ export default function CompetitionsPage() {
                         <strong>Category:</strong> {comp.category}
                       </p>
                       <p>
-                        <strong>Fee:</strong> {comp.fee ? `₹${comp.fee}` : "Free"}
+                        <strong>Fee:</strong>{" "}
+                        {comp.fee ? `₹${comp.fee}` : "Free"}
                       </p>
                     </div>
                   </div>

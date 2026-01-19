@@ -4,8 +4,16 @@ import { useState, useEffect } from "react";
 import { getFirebaseToken } from "@/utils";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+
+const QuillEditor = dynamic(() => import("@/components/TestEditor"), {
+  ssr: false,
+});
 
 export default function NewCompetitionPage() {
+  const router = useRouter();
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -36,7 +44,6 @@ export default function NewCompetitionPage() {
     return () => unsubscribe();
   }, []);
 
-  /* ------------------ Cover Photo Upload ------------------ */
 
   const handleCoverPhotoChange = async (e) => {
     const file = e.target.files?.[0];
@@ -66,7 +73,7 @@ export default function NewCompetitionPage() {
 
       const cloudRes = await fetch(
         `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: "POST", body: form }
+        { method: "POST", body: form },
       );
 
       const cloudData = await cloudRes.json();
@@ -83,8 +90,6 @@ export default function NewCompetitionPage() {
       setIsUploadingImage(false);
     }
   };
-
-  /* ------------------ Custom Questions Logic ------------------ */
 
   const addQuestion = () => {
     setFormData((prev) => ({
@@ -113,7 +118,6 @@ export default function NewCompetitionPage() {
     setFormData((prev) => ({ ...prev, customQuestions: updated }));
   };
 
-  /* ------------------ Submit ------------------ */
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -130,9 +134,7 @@ export default function NewCompetitionPage() {
         type: q.type,
         required: q.required,
         options:
-          q.type === "mcq"
-            ? q.options.split(",").map((o) => o.trim())
-            : [],
+          q.type === "mcq" ? q.options.split(",").map((o) => o.trim()) : [],
       })),
     };
 
@@ -144,19 +146,22 @@ export default function NewCompetitionPage() {
 
     const data = await res.json();
     alert(data.success ? "Competition Created!" : data.error);
+    data.success ? router.push("/competitions") : "";
   };
 
-  /* ------------------ UI ------------------ */
 
   return (
     <div className="p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-semibold mb-4">Create Competition</h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Cover Photo */}
         <div>
           <label className="font-medium">Cover Photo</label>
-          <input type="file" accept="image/*" onChange={handleCoverPhotoChange} />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleCoverPhotoChange}
+          />
           {isUploadingImage && <p>Uploading...</p>}
           {formData.coverPhoto && (
             <img
@@ -169,7 +174,7 @@ export default function NewCompetitionPage() {
 
         {[
           ["Organization/Society", "organization"],
-          ["Name", "name"],
+          ["Event Name", "name"],
           ["Mode", "mode"],
           ["Venue", "venue"],
           ["Category", "category"],
@@ -186,61 +191,71 @@ export default function NewCompetitionPage() {
             />
           </div>
         ))}
-
-        <textarea
-          className="border p-2 rounded"
-          placeholder="About"
+        <label className="font-medium">About</label>
+        <QuillEditor
           value={formData.about}
-          onChange={(e) =>
-            setFormData({ ...formData, about: e.target.value })
+          onChange={(html) =>
+            setFormData((prev) => ({
+              ...prev,
+              about: html,
+            }))
           }
-          required
         />
 
-        {/* Dates / Numbers */}
-        <input type="number" placeholder="Participant Limit" className="border p-2 rounded"
+        <input
+          type="number"
+          placeholder="Participant Limit"
+          className="border p-2 rounded"
           value={formData.participantLimit}
           onChange={(e) =>
             setFormData({ ...formData, participantLimit: e.target.value })
           }
         />
 
-        <input type="date" className="border p-2 rounded"
+        <input
+          type="date"
+          className="border p-2 rounded"
           value={formData.dateStart}
           onChange={(e) =>
             setFormData({ ...formData, dateStart: e.target.value })
           }
         />
 
-        <input type="date" className="border p-2 rounded"
+        <input
+          type="date"
+          className="border p-2 rounded"
           value={formData.dateEnd}
           onChange={(e) =>
             setFormData({ ...formData, dateEnd: e.target.value })
           }
         />
 
-        <input type="time" className="border p-2 rounded"
+        <input
+          type="time"
+          className="border p-2 rounded"
           value={formData.timeStart}
           onChange={(e) =>
             setFormData({ ...formData, timeStart: e.target.value })
           }
         />
 
-        <input type="time" className="border p-2 rounded"
+        <input
+          type="time"
+          className="border p-2 rounded"
           value={formData.timeEnd}
           onChange={(e) =>
             setFormData({ ...formData, timeEnd: e.target.value })
           }
         />
 
-        <input type="number" placeholder="Fee" className="border p-2 rounded"
+        <input
+          type="number"
+          placeholder="Fee"
+          className="border p-2 rounded"
           value={formData.fee}
-          onChange={(e) =>
-            setFormData({ ...formData, fee: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, fee: e.target.value })}
         />
 
-        {/* Custom Questions */}
         <div className="border rounded p-4 space-y-4">
           <h2 className="font-semibold">Custom Application Questions</h2>
 
@@ -250,17 +265,13 @@ export default function NewCompetitionPage() {
                 className="border p-2 rounded w-full"
                 placeholder="Question"
                 value={q.question}
-                onChange={(e) =>
-                  updateQuestion(i, "question", e.target.value)
-                }
+                onChange={(e) => updateQuestion(i, "question", e.target.value)}
               />
 
               <select
                 className="border p-2 rounded w-full"
                 value={q.type}
-                onChange={(e) =>
-                  updateQuestion(i, "type", e.target.value)
-                }
+                onChange={(e) => updateQuestion(i, "type", e.target.value)}
               >
                 <option value="text">Text</option>
                 <option value="number">Number</option>
@@ -272,9 +283,7 @@ export default function NewCompetitionPage() {
                   className="border p-2 rounded w-full"
                   placeholder="Options (comma separated)"
                   value={q.options}
-                  onChange={(e) =>
-                    updateQuestion(i, "options", e.target.value)
-                  }
+                  onChange={(e) => updateQuestion(i, "options", e.target.value)}
                 />
               )}
 

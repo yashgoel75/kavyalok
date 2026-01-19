@@ -6,21 +6,24 @@ export async function POST(req: Request) {
     const status = formData.get("status") as string;
     const productinfo = formData.get("productinfo") as string;
     const email = formData.get("email") as string;
+    const responsesRaw = formData.get("udf1") as string;
 
     if (!status || !productinfo) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    const responses = JSON.parse(responsesRaw);
+
     console.log(status);
     console.log(email);
     console.log(productinfo);
     try {
-      await fetch(`${new URL(req.url).origin}/api/competitions`, {
-        method: "PATCH",
+      await fetch(`${new URL(req.url).origin}/api/competitions/${productinfo}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          competitionId: productinfo,
-          email: email
+          participantId: email,
+          responses,
         }),
       });
     } catch (patchErr) {
