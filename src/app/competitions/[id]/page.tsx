@@ -51,6 +51,15 @@ export default function CompetitionDetailPage() {
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
 
+  const requiredAnswered =
+  competition?.customQuestions
+    ?.filter((q) => q.required)
+    .every((q) => {
+      const v = answers[q._id];
+      return v !== undefined && v !== null && v !== "";
+    }) ?? true;
+
+
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers((prev) => ({
       ...prev,
@@ -122,6 +131,7 @@ export default function CompetitionDetailPage() {
   const [isNowRegistered, setIsNowRegistered] = useState(false);
 
   const handleApply = async () => {
+    if (!requiredAnswered) return;
     if (!firebaseUser) {
       router.push("/auth/login");
       return;
@@ -151,7 +161,7 @@ export default function CompetitionDetailPage() {
         return;
       }
 
-      alert("Application submitted successfully 🎉");
+      alert("Application submitted successfully!");
       setIsNowRegistered(true);
     } catch (err) {
       console.error(err);
@@ -162,6 +172,7 @@ export default function CompetitionDetailPage() {
   };
 
   const handlePayNow = async () => {
+    if (!requiredAnswered) return;
     if (!competition) return;
     if (!firebaseUser) {
       router.push("/auth/login");
@@ -351,15 +362,15 @@ export default function CompetitionDetailPage() {
                 </button>
               ) : fee !== 0 ? (
                 <button
-                  onClick={handlePayNow}
-                  className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md transition cursor-pointer"
+                    onClick={handlePayNow}
+                    className={`px-6 py-2 ${requiredAnswered ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer" : "bg-gray-400 text-white cursor-not-allowed"} text-white rounded-md transition`}
                 >
                   Pay Now
                 </button>
               ) : (
                 <button
                   onClick={handleApply}
-                  className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md transition cursor-pointer"
+                  className={`px-6 py-2 ${requiredAnswered ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer" : "bg-gray-400 text-white cursor-not-allowed"} text-white rounded-md transition`}
                 >
                   Register Now
                 </button>
