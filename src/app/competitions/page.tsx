@@ -47,8 +47,8 @@ export default function CompetitionsPage() {
   }, []);
 
   // Timer component for each competition
-  function TimerPill({ dateEnd }: { dateEnd: string }) {
-    const deadline = new Date(dateEnd).getTime();
+  function TimerPill({ dateStart }: { dateStart: string }) {
+    const deadline = new Date(dateStart).getTime();
     const [timeLeft, setTimeLeft] = useState<string>("");
 
     useEffect(() => {
@@ -140,7 +140,7 @@ export default function CompetitionsPage() {
                   <div>
                     <div className="flex items-center justify-between">
                       <h2 className="text-2xl font-semibold">{comp.name}</h2>
-                      <TimerPill dateEnd={comp.dateEnd} />
+                      <TimerPill dateStart={comp.dateStart} />
                     </div>
 
                     <p

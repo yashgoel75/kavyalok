@@ -53,13 +53,12 @@ export default function CompetitionDetailPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const requiredAnswered =
-  competition?.customQuestions
-    ?.filter((q) => q.required)
-    .every((q) => {
-      const v = answers[q._id];
-      return v !== undefined && v !== null && v !== "";
-    }) ?? true;
-
+    competition?.customQuestions
+      ?.filter((q) => q.required)
+      .every((q) => {
+        const v = answers[q._id];
+        return v !== undefined && v !== null && v !== "";
+      }) ?? true;
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers((prev) => ({
@@ -115,8 +114,8 @@ export default function CompetitionDetailPage() {
     return () => unsubscribe();
   }, []);
 
-  function TimerPill({ dateEnd }: { dateEnd: string }) {
-    const deadline = new Date(dateEnd).getTime();
+  function TimerPill({ dateStart }: { dateStart: string }) {
+    const deadline = new Date(dateStart).getTime();
     const [timeLeft, setTimeLeft] = useState("");
 
     useEffect(() => {
@@ -281,7 +280,7 @@ export default function CompetitionDetailPage() {
       <main className="max-w-6xl mx-auto px-4 py-12 min-h-[80vh]">
         <div className="flex items-center justify-between mb-10">
           <h1 className="text-4xl font-bold">{name}</h1>
-          <TimerPill dateEnd={dateEnd} />
+          <TimerPill dateStart={dateStart} />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <div className="md:col-span-2 space-y-6">
@@ -377,8 +376,8 @@ export default function CompetitionDetailPage() {
                 </button>
               ) : fee !== 0 ? (
                 <button
-                    onClick={handlePayNow}
-                    className={`px-6 py-2 ${requiredAnswered ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer" : "bg-gray-400 text-white cursor-not-allowed"} text-white rounded-md transition`}
+                  onClick={handlePayNow}
+                  className={`px-6 py-2 ${requiredAnswered ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer" : "bg-gray-400 text-white cursor-not-allowed"} text-white rounded-md transition`}
                 >
                   Pay Now
                 </button>
@@ -403,11 +402,12 @@ export default function CompetitionDetailPage() {
               </p>
               <p>
                 <strong>Date:</strong>{" "}
-                {new Date(dateStart).toLocaleDateString()} –{" "}
-                {new Date(dateEnd).toLocaleDateString()}
+                {new Date(dateStart).toLocaleDateString()} {dateEnd ? "–" : ""}{" "}
+                {dateEnd ? new Date(dateEnd).toLocaleDateString() : ""}
               </p>
               <p>
-                <strong>Time:</strong> {timeStart} – {timeEnd}
+                <strong>Time:</strong> {timeStart}{" "}
+                {timeEnd ? "-" + timeEnd : ""}
               </p>
               <p>
                 <strong>Participant Limit:</strong> {participantLimit}
