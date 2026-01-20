@@ -407,7 +407,7 @@ export default function CompetitionDetailPage() {
               </p>
               <p>
                 <strong>Time:</strong> {timeStart}{" "}
-                {timeEnd ? "-" + timeEnd : ""}
+                {timeEnd ? "- " + timeEnd : ""}
               </p>
               <p>
                 <strong>Participant Limit:</strong> {participantLimit}

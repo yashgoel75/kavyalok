@@ -139,7 +139,7 @@ export default function CompetitionsPage() {
                 <div className="flex flex-col justify-between w-full">
                   <div>
                     <div className="flex items-center justify-between">
-                      <h2 className="text-2xl font-semibold">{comp.name}</h2>
+                      <h2 className="text-xl md:text-2xl font-semibold">{comp.name}</h2>
                       <TimerPill dateStart={comp.dateStart} />
                     </div>
 
