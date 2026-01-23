@@ -91,6 +91,9 @@ export default function CompetitionDetailPage() {
           ? data.find((c: Competition) => c._id === competitionId)
           : data?.data?.find((c: Competition) => c._id === competitionId);
         setCompetition(comp || null);
+        if (comp.participants.length == comp.participantLimit) {
+          setIsLimitFull(true);
+        }
       } catch (err) {
         console.error("Failed to fetch competition:", err);
       } finally {
@@ -143,11 +146,15 @@ export default function CompetitionDetailPage() {
     );
   }
   const [isNowRegistered, setIsNowRegistered] = useState(false);
+  const [isLimitFull, setIsLimitFull] = useState(false);
 
   const handleApply = async () => {
     if (!requiredAnswered) return;
     if (!firebaseUser) {
       router.push("/auth/login");
+      return;
+    }
+    if (participants.length == participantLimit) {
       return;
     }
 
@@ -190,6 +197,9 @@ export default function CompetitionDetailPage() {
     if (!competition) return;
     if (!firebaseUser) {
       router.push("/auth/login");
+      return;
+    }
+    if (participants.length == participantLimit) {
       return;
     }
 
@@ -370,10 +380,22 @@ export default function CompetitionDetailPage() {
             )}
 
             <div className="mt-6">
-              {isRegistered || isNowRegistered ? (
-                <button className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed">
-                  Already Registered
-                </button>
+              {isRegistered || isNowRegistered || isLimitFull ? (
+                isLimitFull ? (
+                  <button
+                    disabled
+                    className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
+                  >
+                    Registrations Full
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
+                  >
+                    Already Registered
+                  </button>
+                )
               ) : fee !== 0 ? (
                 <button
                   onClick={handlePayNow}
@@ -417,6 +439,10 @@ export default function CompetitionDetailPage() {
               </p>
               <p>
                 <strong>Registration Fee:</strong> ₹{fee}
+              </p>
+              <p>
+                <strong>Registrations: </strong>
+                {participants.length} registered
               </p>
             </div>
           </aside>
