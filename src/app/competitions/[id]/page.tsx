@@ -18,6 +18,7 @@ interface Competition {
   organization: string;
   participantLimit: number;
   mode: string;
+  venue: string;
   dateStart: string;
   dateEnd: string;
   timeStart: string;
@@ -264,6 +265,7 @@ export default function CompetitionDetailPage() {
     about,
     participantLimit,
     mode,
+    venue,
     organization,
     dateStart,
     dateEnd,
@@ -421,6 +423,9 @@ export default function CompetitionDetailPage() {
               </p>
               <p>
                 <strong>Mode:</strong> {mode}
+              </p>
+              <p>
+                <strong>Venue:</strong> {venue}
               </p>
               <p>
                 <strong>Date:</strong>{" "}
