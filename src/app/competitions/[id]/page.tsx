@@ -413,7 +413,7 @@ export default function CompetitionDetailPage() {
               )}
             </div>
           </div>
-          <aside className="space-y-4 p-5 border rounded-lg bg-gray-50 shadow-sm">
+          <aside className="space-y-4 p-5 max-h-screen border rounded-lg bg-gray-50 shadow-sm">
             <h3 className="text-lg font-semibold mb-3">Event Details</h3>
             <div className="space-y-2 text-gray-700">
               <p>
