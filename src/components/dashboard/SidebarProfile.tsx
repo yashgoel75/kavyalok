@@ -145,6 +145,7 @@ const SidebarProfile = memo(
                         className="flex items-center gap-3 px-5 py-2 rounded-xl bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 text-white shadow-md hover:shadow-lg transition-all"
                       >
                         <Image
+                          loading="lazy"
                           src={instagramImg}
                           width={25}
                           height={25}
@@ -197,7 +198,7 @@ const SidebarProfile = memo(
         )}
       </>
     );
-  }
+  },
 );
 
 SidebarProfile.displayName = "SidebarProfile";

@@ -117,6 +117,7 @@ export default function PostCard({
           {post.author.profilePicture ? (
             <div className="relative">
               <Image
+                loading="lazy"
                 src={post.author.profilePicture}
                 alt={post.author.name}
                 width={40}
@@ -169,6 +170,7 @@ export default function PostCard({
         {post.picture && (
           <div className="relative w-full h-48 mb-3 rounded-md overflow-hidden">
             <Image
+              loading="lazy"
               src={post.picture}
               alt="Post image"
               fill
