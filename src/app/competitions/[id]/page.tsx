@@ -23,6 +23,7 @@ interface Competition {
   dateEnd: string;
   timeStart: string;
   timeEnd: string;
+  registrationDeadline: Date;
   category: string;
   fee: number;
   judgingCriteria: string[];
@@ -118,8 +119,11 @@ export default function CompetitionDetailPage() {
     return () => unsubscribe();
   }, []);
 
-  function TimerPill({ dateStart }: { dateStart: string }) {
-    const deadline = new Date(dateStart).getTime();
+  const [isDeadlinePassed, setIsDeadlinePassed] = useState(false);
+
+  function TimerPill({ registrationDeadline }: { registrationDeadline: Date }) {
+    const deadline = new Date(registrationDeadline).getTime();
+    setIsDeadlinePassed(new Date(registrationDeadline).getTime() <= Date.now());
     const [timeLeft, setTimeLeft] = useState("");
 
     useEffect(() => {
@@ -271,6 +275,7 @@ export default function CompetitionDetailPage() {
     dateEnd,
     timeStart,
     timeEnd,
+    registrationDeadline,
     category,
     fee,
     judgingCriteria,
@@ -292,7 +297,7 @@ export default function CompetitionDetailPage() {
       <main className="max-w-6xl mx-auto px-4 py-12 min-h-[80vh]">
         <div className="flex items-center justify-between mb-10">
           <h1 className="text-4xl font-bold">{name}</h1>
-          <TimerPill dateStart={dateStart} />
+          <TimerPill registrationDeadline={registrationDeadline} />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <div className="md:col-span-2 space-y-6">
@@ -382,33 +387,41 @@ export default function CompetitionDetailPage() {
             )}
 
             <div className="mt-6">
-              {isRegistered || isNowRegistered || isLimitFull ? (
-                isLimitFull ? (
-                  <button
-                    disabled
-                    className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
-                  >
-                    Registrations Full
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
-                  >
-                    Already Registered
-                  </button>
-                )
+              {isRegistered ||
+              isNowRegistered ||
+              isLimitFull ||
+              isDeadlinePassed ? (
+                <button
+                  disabled
+                  className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
+                >
+                  {isLimitFull
+                    ? "Registrations Full"
+                    : isDeadlinePassed
+                      ? "Registration Closed"
+                      : "Already Registered"}
+                </button>
               ) : fee !== 0 ? (
                 <button
                   onClick={handlePayNow}
-                  className={`px-6 py-2 ${requiredAnswered ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer" : "bg-gray-400 text-white cursor-not-allowed"} text-white rounded-md transition`}
+                  disabled={!requiredAnswered}
+                  className={`px-6 py-2 ${
+                    requiredAnswered
+                      ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer"
+                      : "bg-gray-400 cursor-not-allowed"
+                  } text-white rounded-md transition`}
                 >
                   Pay Now
                 </button>
               ) : (
                 <button
                   onClick={handleApply}
-                  className={`px-6 py-2 ${requiredAnswered ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer" : "bg-gray-400 text-white cursor-not-allowed"} text-white rounded-md transition`}
+                  disabled={!requiredAnswered}
+                  className={`px-6 py-2 ${
+                    requiredAnswered
+                      ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer"
+                      : "bg-gray-400 cursor-not-allowed"
+                  } text-white rounded-md transition`}
                 >
                   Register Now
                 </button>
@@ -426,6 +439,16 @@ export default function CompetitionDetailPage() {
               </p>
               <p>
                 <strong>Venue:</strong> {venue}
+              </p>
+              <p>
+                <strong>Registration Deadline:</strong>{" "}
+                {new Date(registrationDeadline).toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </p>
               <p>
                 <strong>Date:</strong>{" "}

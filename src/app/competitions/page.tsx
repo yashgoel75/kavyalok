@@ -20,6 +20,7 @@ interface Competition {
   dateEnd: string;
   timeStart: string;
   timeEnd: string;
+  registrationDeadline: Date;
   category: string;
   fee: number;
   judgingCriteria: string[];
@@ -47,8 +48,8 @@ export default function CompetitionsPage() {
   }, []);
 
   // Timer component for each competition
-  function TimerPill({ dateStart }: { dateStart: string }) {
-    const deadline = new Date(dateStart).getTime();
+  function TimerPill({ registrationDeadline }: { registrationDeadline: Date }) {
+    const deadline = new Date(registrationDeadline).getTime();
     const [timeLeft, setTimeLeft] = useState<string>("");
 
     useEffect(() => {
@@ -142,7 +143,7 @@ export default function CompetitionsPage() {
                       <h2 className="text-xl md:text-2xl font-semibold">
                         {comp.name}
                       </h2>
-                      <TimerPill dateStart={comp.dateStart} />
+                      <TimerPill registrationDeadline={comp.registrationDeadline} />
                     </div>
 
                     <p

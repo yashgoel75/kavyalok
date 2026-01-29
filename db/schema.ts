@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const CompetitionSchema = new Schema({
     coverPhoto: { type: String },
     name: { type: String, required: true },
-    organization: {type: String, required: false},
+    organization: { type: String, required: false },
     about: { type: String, required: true },
     participantLimit: { type: Number },
     mode: { type: String },
@@ -14,6 +14,7 @@ const CompetitionSchema = new Schema({
     dateEnd: { type: String },
     timeStart: { type: String },
     timeEnd: { type: String },
+    registrationDeadline: { type: Date },
     category: { type: String },
     fee: { type: Number },
     judgingCriteria: [String],
@@ -21,10 +22,10 @@ const CompetitionSchema = new Schema({
     customQuestions: [
         {
             question: { type: String, required: true },
-            type: { 
-                type: String, 
-                enum: ['text', 'number', 'mcq'], 
-                default: 'text' 
+            type: {
+                type: String,
+                enum: ['text', 'number', 'mcq'],
+                default: 'text'
             },
             options: [String],
             required: { type: Boolean, default: false }
@@ -53,7 +54,7 @@ const CompetitionApplicationSchema = new Schema({
                 required: true
             },
             answer: {
-                type: Schema.Types.Mixed 
+                type: Schema.Types.Mixed
             }
         }
     ],
