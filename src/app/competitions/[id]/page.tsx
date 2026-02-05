@@ -437,9 +437,11 @@ export default function CompetitionDetailPage() {
               <p>
                 <strong>Mode:</strong> {mode}
               </p>
-              <p>
-                <strong>Venue:</strong> {venue}
-              </p>
+              {venue ? (
+                <p>
+                  <strong>Venue:</strong> {venue}
+                </p>
+              ) : null}
               <p>
                 <strong>Registration Deadline:</strong>{" "}
                 {new Date(registrationDeadline).toLocaleString("en-IN", {
@@ -455,10 +457,12 @@ export default function CompetitionDetailPage() {
                 {new Date(dateStart).toLocaleDateString()} {dateEnd ? "–" : ""}{" "}
                 {dateEnd ? new Date(dateEnd).toLocaleDateString() : ""}
               </p>
-              <p>
-                <strong>Time:</strong> {timeStart}{" "}
-                {timeEnd ? "- " + timeEnd : ""}
-              </p>
+              {timeStart ? (
+                <p>
+                  <strong>Time:</strong> {timeStart}{" "}
+                  {timeEnd ? "- " + timeEnd : ""}
+                </p>
+              ) : null}
               <p>
                 <strong>Participant Limit:</strong> {participantLimit}
               </p>
