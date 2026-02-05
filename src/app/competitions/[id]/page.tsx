@@ -295,16 +295,16 @@ export default function CompetitionDetailPage() {
         </div>
       )}
       <main className="max-w-6xl mx-auto px-4 py-12 min-h-[80vh]">
-        <div className="block md:hidden text-right mb-5">
-          <TimerPill registrationDeadline={registrationDeadline} />
-        </div>
-        <div className="flex items-center justify-between mb-10">
-          <h1 className="text-2xl md:text-4xl font-bold">{name}</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-3xl md:text-4xl font-bold">{name}</h1>
           <div className="hidden md:block">
             <TimerPill registrationDeadline={registrationDeadline} />
           </div>
         </div>
-        
+
+        <div className="block md:hidden mb-5">
+          <TimerPill registrationDeadline={registrationDeadline} />
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <div className="md:col-span-2 space-y-6">
