@@ -337,6 +337,57 @@ export default function CompetitionDetailPage() {
               </section>
             )}
 
+            <aside className="space-y-4 p-5 max-h-screen border rounded-lg bg-gray-50 shadow-sm block md:hidden">
+            <h3 className="text-lg font-semibold mb-3">Event Details</h3>
+            <div className="space-y-2 text-gray-700">
+              <p>
+                <strong>Organization:</strong> {organization}
+              </p>
+              <p>
+                <strong>Mode:</strong> {mode}
+              </p>
+              {venue ? (
+                <p>
+                  <strong>Venue:</strong> {venue}
+                </p>
+              ) : null}
+              <p>
+                <strong>Registration Deadline:</strong>{" "}
+                {new Date(registrationDeadline).toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+              <p>
+                <strong>Date:</strong>{" "}
+                {new Date(dateStart).toLocaleDateString()} {dateEnd ? "–" : ""}{" "}
+                {dateEnd ? new Date(dateEnd).toLocaleDateString() : ""}
+              </p>
+              {timeStart ? (
+                <p>
+                  <strong>Time:</strong> {timeStart}{" "}
+                  {timeEnd ? "- " + timeEnd : ""}
+                </p>
+              ) : null}
+              <p>
+                <strong>Participant Limit:</strong> {participantLimit}
+              </p>
+              <p>
+                <strong>Category:</strong> {category}
+              </p>
+              <p>
+                <strong>Registration Fee:</strong> ₹{fee}
+              </p>
+              <p>
+                <strong>Registrations: </strong>
+                {participants.length} registered
+              </p>
+            </div>
+          </aside>
+
             {competition.customQuestions?.length > 0 && !isRegistered && (
               <section className="mt-8 space-y-5">
                 <h2 className="text-2xl font-semibold">
@@ -435,7 +486,7 @@ export default function CompetitionDetailPage() {
               )}
             </div>
           </div>
-          <aside className="space-y-4 p-5 max-h-screen border rounded-lg bg-gray-50 shadow-sm">
+          <aside className="space-y-4 p-5 max-h-screen border rounded-lg bg-gray-50 shadow-sm hidden md:block">
             <h3 className="text-lg font-semibold mb-3">Event Details</h3>
             <div className="space-y-2 text-gray-700">
               <p>
