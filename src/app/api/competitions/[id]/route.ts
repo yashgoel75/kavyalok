@@ -8,14 +8,12 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   try {
     await register();
     const comp = await Competition.findById(id).lean();
-
     if (!comp) {
       return NextResponse.json(
         { success: false, error: "Competition not found" },
         { status: 404 }
       );
     }
-
     return NextResponse.json({
       success: true,
       data: comp,
@@ -29,18 +27,39 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   }
 }
 
-
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-
   try {
     await register();
     const body = await req.json();
+    const { participantId, responses, isAdmin, updates } = body;
 
-    const { participantId, responses } = body;
+    if (isAdmin && updates) {
+      const competition = await Competition.findById(id);
+      if (!competition) {
+        return NextResponse.json(
+          { success: false, error: "Competition not found" },
+          { status: 404 }
+        );
+      }
+
+      Object.keys(updates).forEach((key) => {
+        if (updates[key] !== undefined) {
+          competition[key] = updates[key];
+        }
+      });
+
+      await competition.save();
+
+      return NextResponse.json({
+        success: true,
+        message: "Competition updated successfully",
+        data: competition,
+      });
+    }
 
     if (!participantId) {
       return NextResponse.json(
@@ -97,21 +116,17 @@ export async function PUT(
   }
 }
 
-
-
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   try {
     await register();
     const deleted = await Competition.findByIdAndDelete(id);
-
     if (!deleted) {
       return NextResponse.json(
         { success: false, error: "Competition not found" },
         { status: 404 }
       );
     }
-
     return NextResponse.json({ success: true, message: "Deleted successfully" });
   } catch (err: any) {
     console.error("Delete competition error:", err);

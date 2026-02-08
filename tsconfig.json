@@ -36,7 +36,7 @@
     "src/components/DomeGallery.jsx",
     "src/app/api/verify-all-users/route.js",
     ".next/dev/types/**/*.ts"
-  ],
+, "src/app/api/supercompetitions/route.ts"  ],
   "exclude": [
     "node_modules"
   ]

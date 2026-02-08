@@ -20,6 +20,7 @@ export default function NewCompetitionPage() {
   const [formData, setFormData] = useState({
     coverPhoto: "",
     name: "",
+    owner: "",
     organization: "",
     about: "",
     participantLimit: "",
@@ -124,6 +125,7 @@ export default function NewCompetitionPage() {
 
     const payload = {
       ...formData,
+      owner: firebaseUser.email,
       participantLimit: Number(formData.participantLimit || 0),
       fee: Number(formData.fee || 0),
       judgingCriteria: JSON.parse(formData.judgingCriteria || "[]"),

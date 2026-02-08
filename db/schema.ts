@@ -2,8 +2,25 @@ import mongoose from "mongoose";
 
 const { Schema } = mongoose;
 
+const superCompetitionSchema = new Schema({
+    coverPhoto: { type: String },
+    owner: { type: String },
+    name: { type: String, required: true },
+    organization: { type: String, required: false },
+    about: { type: String, required: true },
+    dateStart: { type: String },
+    dateEnd: { type: String },
+    registrationDeadline: { type: Date },
+    category: { type: String },
+    prizePool: [String],
+    competitions: [{ type: Schema.Types.ObjectId, ref: 'Competition' }],
+    participants: [String],
+    isSuperEvent: { type: Boolean, default: true },
+});
+
 const CompetitionSchema = new Schema({
     coverPhoto: { type: String },
+    owner: { type: String },
     name: { type: String, required: true },
     organization: { type: String, required: false },
     about: { type: String, required: true },
@@ -31,8 +48,9 @@ const CompetitionSchema = new Schema({
             required: { type: Boolean, default: false }
         }
     ],
-
     participants: [String],
+    parentSuperEvent: { type: Schema.Types.ObjectId, ref: 'superCompetition', default: null },
+    isSuperEvent: { type: Boolean, default: false },
 });
 
 const CompetitionApplicationSchema = new Schema({
@@ -119,6 +137,7 @@ const UserSchema = new Schema({
 
 UserSchema.index({ username: 1, email: 1 });
 
+export const superCompetition = mongoose.models.superCompetition || mongoose.model("superCompetition", superCompetitionSchema)
 export const Competition = mongoose.models.Competition || mongoose.model("Competition", CompetitionSchema)
 export const CompetitionApplication = mongoose.models.CompetitionApplication || mongoose.model("CompetitionApplication", CompetitionApplicationSchema)
 export const User = mongoose.models.User || mongoose.model("User", UserSchema);

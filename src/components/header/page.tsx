@@ -1,7 +1,7 @@
 "use client";
 
 import GradientText from "../GradientText";
-import { Search, LogOut, Bell, User as UserIcon } from "lucide-react";
+import { Search, LogOut, Bell, User as UserIcon, Trophy } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { getAuth, signOut, onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -222,7 +222,7 @@ export default function Header() {
                 </button>
 
                 {isOpen && (
-                  <div className="absolute right-0 mt-45 min-w-[160px] bg-white border border-gray-200 rounded-md shadow-lg z-50 menu-dropdown">
+                  <div className="absolute right-0 mt-55 min-w-[160px] bg-white border border-gray-200 rounded-md shadow-lg z-50 menu-dropdown">
                     <div className="px-4 py-2 border-b border-gray-200">
                       <p className="font-semibold">{displayName || "User"}</p>
                       <p className="text-sm text-gray-500">{user.email}</p>
@@ -232,6 +232,12 @@ export default function Header() {
                       className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
                     >
                       <UserIcon size={16} /> Account
+                    </button>
+                    <button
+                      onClick={() => {router.push("/account/events")}}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Trophy size={16} /> Your Events
                     </button>
                     <button
                       onClick={handleLogout}

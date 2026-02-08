@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Navigation from "@/components/navigation/page"; // Keep your nav
+import Navigation from "@/components/navigation/page";
 import { useDashboard } from "@/hooks/useDashboard";
 import SidebarProfile from "@/components/dashboard/SidebarProfile";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";

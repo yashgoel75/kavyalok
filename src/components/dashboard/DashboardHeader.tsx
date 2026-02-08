@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { LogOut, Search, UserIcon, Menu, X, Bell } from "lucide-react";
+import { LogOut, Search, UserIcon, Menu, X, Bell, Trophy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { User } from "@/hooks/useDashboard";
 import { getFirebaseToken } from "@/utils";
@@ -155,6 +155,14 @@ export default function DashboardHeader({
                         className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
                       >
                         <UserIcon size={16} /> Account
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push("/account/events");
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Trophy size={16} /> Your Events
                       </button>
                       <button
                         onClick={onLogout}

@@ -38,6 +38,7 @@ export const POST = async (req) => {
       coverPhoto: body.coverPhoto || "",
       organization: body.organization,
       name: body.name,
+      owner: body.owner,
       about: body.about,
       participantLimit: body.participantLimit,
       mode: body.mode,

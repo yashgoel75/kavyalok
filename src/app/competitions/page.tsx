@@ -8,6 +8,8 @@ import { useState, useEffect } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
+import axios from "axios";
+import { getFirebaseToken } from "@/utils";
 
 interface Competition {
   _id: string;
@@ -47,7 +49,6 @@ export default function CompetitionsPage() {
     return () => unsubscribe();
   }, []);
 
-  // Timer component for each competition
   function TimerPill({ registrationDeadline }: { registrationDeadline: Date }) {
     const deadline = new Date(registrationDeadline).getTime();
     const [timeLeft, setTimeLeft] = useState<string>("");
@@ -101,6 +102,29 @@ export default function CompetitionsPage() {
     fetchCompetitions();
   }, []);
 
+  async function handleHostEvent(email: string) {
+    try {
+      const token = await getFirebaseToken();
+      const res = await fetch(
+        `/api/user/posts?email=${encodeURIComponent(email)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      const data = await res.json();
+      console.log(data.user);
+      if (data.user.isEligibleToHost) {
+        router.push('/competitions/new');
+      } else {
+        
+      }
+    } catch (error: unknown) {
+      console.log(error);
+    }
+  }
+
   if (loading)
     return <p className="text-center mt-12">Loading competitions...</p>;
   if (competitions.length === 0)
@@ -111,14 +135,29 @@ export default function CompetitionsPage() {
       <Header />
 
       <main className="max-w-6xl mx-auto px-4 py-12 min-h-[85vh]">
-        <div className="mb-12">
-          <h1 className="text-3xl font-semibold mb-2">
-            Embrace the Challenge ✍️
-          </h1>
-          <p className="text-lg text-gray-600">
-            Seize every literary chance to write, compete, and shine.
-          </p>
+        <div className="mb-6 md:mb-12 flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-semibold mb-2">
+              Embrace the Challenge ✍️
+            </h1>
+            <p className="text-lg text-gray-600">
+              Seize every literary chance to write, compete, and shine.
+            </p>
+          </div>
+          <button
+            onClick={() => handleHostEvent(user?.email || "")}
+            className="hidden md:block px-3 py-1 rounded-md bg-yellow-600 text-white cursor-pointer hover:shadow-md"
+          >
+            Host your event
+          </button>
         </div>
+
+        <button
+          onClick={() => handleHostEvent("yash.goel8370@gmail.com")}
+          className="md:hidden block mb-12 px-3 py-1 rounded-md bg-yellow-600 text-white cursor-pointer hover:shadow-md"
+        >
+          Host your event
+        </button>
 
         <section>
           <div className="text-xl font-bold my-2">Upcoming Events</div>
@@ -143,7 +182,9 @@ export default function CompetitionsPage() {
                       <h2 className="text-xl md:text-2xl font-semibold">
                         {comp.name}
                       </h2>
-                      <TimerPill registrationDeadline={comp.registrationDeadline} />
+                      <TimerPill
+                        registrationDeadline={comp.registrationDeadline}
+                      />
                     </div>
 
                     <p

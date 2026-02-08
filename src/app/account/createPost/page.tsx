@@ -70,7 +70,12 @@ export default function CreatePost() {
 
   const fetchUserData = async (email: string) => {
     try {
-      const res = await fetch(`/api/user?email=${encodeURIComponent(email)}`);
+      const token = await getFirebaseToken();
+      const res = await fetch(`/api/user?email=${encodeURIComponent(email)}`, {
+        headers: {
+          Authorization: `Bearer ${ token }`
+        }
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load user data");
       setUserData(data.user);
