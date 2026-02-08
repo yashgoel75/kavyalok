@@ -43,12 +43,10 @@ export default function Events() {
 
   async function getEvents(owner: string) {
     try {
-    //   const data = await axios.get(
-    //     `/api/competitions/byOwner?owner=${encodeURIComponent(owner)}`,
-        //   );
-        const data = await axios.get(
-        `/api/competitions/byOwner?owner=kavyarang.vipstcpoetrysociety@gmail.com`,
+      const data = await axios.get(
+        `/api/competitions/byOwner?owner=${encodeURIComponent(owner)}`,
       );
+
       console.log(data.data.data);
       setEvents(data.data.data || []);
     } catch (error: unknown) {
@@ -59,8 +57,7 @@ export default function Events() {
     }
   }
 
-  if (loading)
-    return <p className="text-center mt-12">Loading events...</p>;
+  if (loading) return <p className="text-center mt-12">Loading events...</p>;
   if (events.length === 0)
     return <p className="text-center mt-12">No events available.</p>;
 
@@ -70,9 +67,7 @@ export default function Events() {
 
       <main className="max-w-6xl mx-auto px-4 py-12 min-h-[85vh]">
         <div className="mb-6 md:mb-12">
-          <h1 className="text-3xl font-semibold mb-2">
-            Your Hosted Events
-          </h1>
+          <h1 className="text-3xl font-semibold mb-2">Your Hosted Events</h1>
           <p className="text-lg text-gray-600">
             Manage and track your literary competitions.
           </p>
@@ -123,7 +118,9 @@ export default function Events() {
                   </div>
 
                   <button className="mt-6 px-6 w-fit py-2 bg-gradient-to-tr from-yellow-400 to-yellow-800 text-white rounded-md font-medium border border-gray-300 transition cursor-pointer">
-                    <Link href={`/account/events/${event._id}`}>View Details</Link>
+                    <Link href={`/account/events/${event._id}`}>
+                      View Details
+                    </Link>
                   </button>
                 </div>
               </div>
