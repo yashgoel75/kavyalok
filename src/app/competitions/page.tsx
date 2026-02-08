@@ -16,23 +16,27 @@ interface Competition {
   coverPhoto: string;
   name: string;
   about: string;
-  participantLimit: number;
-  mode: string;
+  organization: string;
+  participantLimit?: number;
+  mode?: string;
   dateStart: string;
   dateEnd: string;
-  timeStart: string;
-  timeEnd: string;
-  registrationDeadline: Date;
+  timeStart?: string;
+  timeEnd?: string;
+  registrationDeadline?: Date;
   category: string;
-  fee: number;
-  judgingCriteria: string[];
+  fee?: number;
+  judgingCriteria?: string[];
   prizePool: string[];
+  isSuperEvent?: boolean;
+  competitions?: string[];
 }
 
 export default function CompetitionsPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [superCompetitions, setSuperCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -49,7 +53,9 @@ export default function CompetitionsPage() {
     return () => unsubscribe();
   }, []);
 
-  function TimerPill({ registrationDeadline }: { registrationDeadline: Date }) {
+  function TimerPill({ registrationDeadline }: { registrationDeadline?: Date }) {
+    if (!registrationDeadline) return null;
+    
     const deadline = new Date(registrationDeadline).getTime();
     const [timeLeft, setTimeLeft] = useState<string>("");
 
@@ -85,12 +91,24 @@ export default function CompetitionsPage() {
   useEffect(() => {
     async function fetchCompetitions() {
       try {
-        const res = await fetch("/api/competitions");
-        const data = await res.json();
-        if (data.success) {
-          setCompetitions(data.data);
+        const [compRes, superRes] = await Promise.all([
+          fetch("/api/competitions"),
+          fetch("/api/supercompetitions")
+        ]);
+        
+        const compData = await compRes.json();
+        const superData = await superRes.json();
+        
+        if (compData.success) {
+          setCompetitions(compData.data);
         } else {
-          console.error(data.error);
+          console.error(compData.error);
+        }
+        
+        if (superData.success) {
+          setSuperCompetitions(superData.data);
+        } else {
+          console.error(superData.error);
         }
       } catch (err) {
         console.error("Failed to fetch competitions:", err);
@@ -125,9 +143,13 @@ export default function CompetitionsPage() {
     }
   }
 
+  const allCompetitions = [...superCompetitions, ...competitions].sort((a, b) => {
+    return new Date(b.dateStart).getTime() - new Date(a.dateStart).getTime();
+  });
+
   if (loading)
     return <p className="text-center mt-12">Loading competitions...</p>;
-  if (competitions.length === 0)
+  if (allCompetitions.length === 0)
     return <p className="text-center mt-12">No competitions available.</p>;
 
   return (
@@ -153,7 +175,7 @@ export default function CompetitionsPage() {
         </div>
 
         <button
-          onClick={() => handleHostEvent("yash.goel8370@gmail.com")}
+          onClick={() => handleHostEvent(user?.email || "")}
           className="md:hidden block mb-12 px-3 py-1 rounded-md bg-yellow-600 text-white cursor-pointer hover:shadow-md"
         >
           Host your event
@@ -163,7 +185,7 @@ export default function CompetitionsPage() {
           <div className="text-xl font-bold my-2">Upcoming Events</div>
 
           <div className="space-y-6">
-            {[...competitions].reverse().map((comp) => (
+            {allCompetitions.map((comp) => (
               <div
                 key={comp._id}
                 className="rounded-md space-y-3 p-4 w-full border border-gray-200 gap-6"
@@ -178,13 +200,20 @@ export default function CompetitionsPage() {
 
                 <div className="flex flex-col justify-between w-full">
                   <div>
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xl md:text-2xl font-semibold">
-                        {comp.name}
-                      </h2>
-                      <TimerPill
-                        registrationDeadline={comp.registrationDeadline}
-                      />
+                     {comp.isSuperEvent && (
+                          <span className="block w-fit  mb-2 px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-full">
+                            Super Competition
+                          </span>
+                        )}
+                    <div className="flex items-center justify-between mb-2">
+                      
+                      <div className="flex items-center gap-2">
+                       
+                        <h2 className="text-xl md:text-2xl font-semibold">
+                          {comp.name}
+                        </h2>
+                      </div>
+                      <TimerPill registrationDeadline={comp.registrationDeadline} />
                     </div>
 
                     <p
@@ -197,33 +226,55 @@ export default function CompetitionsPage() {
                     ></p>
 
                     <div className="mt-4 text-sm text-gray-600 space-y-1">
-                      <p>
-                        <strong>Participants Limit:</strong>{" "}
-                        {comp.participantLimit}
-                      </p>
-                      <p>
-                        <strong>Mode:</strong> {comp.mode}
-                      </p>
+                      {comp.organization && (
+                        <p>
+                          <strong>Organization:</strong> {comp.organization}
+                        </p>
+                      )}
+                      {!comp.isSuperEvent && (
+                        <>
+                          {comp.participantLimit && (
+                            <p>
+                              <strong>Participants Limit:</strong> {comp.participantLimit}
+                            </p>
+                          )}
+                          {comp.mode && (
+                            <p>
+                              <strong>Mode:</strong> {comp.mode}
+                            </p>
+                          )}
+                        </>
+                      )}
                       <p>
                         <strong>Date:</strong>{" "}
                         {new Date(comp.dateStart).toLocaleDateString()} –{" "}
                         {new Date(comp.dateEnd).toLocaleDateString()}
                       </p>
-                      <p>
-                        <strong>Time:</strong> {comp.timeStart} – {comp.timeEnd}
-                      </p>
+                      {!comp.isSuperEvent && comp.timeStart && comp.timeEnd && (
+                        <p>
+                          <strong>Time:</strong> {comp.timeStart} – {comp.timeEnd}
+                        </p>
+                      )}
                       <p>
                         <strong>Category:</strong> {comp.category}
                       </p>
-                      <p>
-                        <strong>Fee:</strong>{" "}
-                        {comp.fee ? `₹${comp.fee}` : "Free"}
-                      </p>
+                      {!comp.isSuperEvent && comp.fee !== undefined && (
+                        <p>
+                          <strong>Fee:</strong> {comp.fee ? `₹${comp.fee}` : "Free"}
+                        </p>
+                      )}
+                      {comp.isSuperEvent && comp.competitions && (
+                        <p>
+                          <strong>Sub-Events:</strong> {comp.competitions.length}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <button className="mt-6 px-6 w-fit py-2 bg-gradient-to-tr from-yellow-400 to-yellow-800 text-white rounded-md font-medium border border-gray-300 transition cursor-pointer">
-                    <Link href={`/competitions/${comp._id}`}>Register Now</Link>
+                    <Link href={`/competitions/${comp.isSuperEvent ? 'super' : 'regular'}/${comp._id}`}>
+                      {comp.isSuperEvent ? 'View Details' : 'Register Now'}
+                    </Link>
                   </button>
                 </div>
               </div>

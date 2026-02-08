@@ -18,12 +18,15 @@ interface Event {
   about: string;
   dateStart: string;
   dateEnd: string;
+  isSuperEvent?: boolean;
+  competitions?: string[];
 }
 
 export default function Events() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
+  const [superEvents, setSuperEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -31,6 +34,7 @@ export default function Events() {
       setUser(user);
       if (user?.email) {
         getEvents(user.email);
+        getSuperEvents(user.email);
         return;
       } else {
         const timer = setTimeout(() => {
@@ -57,8 +61,28 @@ export default function Events() {
     }
   }
 
+  async function getSuperEvents(owner: string) {
+    try {
+      const data = await axios.get(
+        `/api/supercompetitions/byOwner?owner=${encodeURIComponent(owner)}`,
+      );
+
+      console.log(data.data.data);
+      setSuperEvents(data.data.data || []);
+    } catch (error: unknown) {
+      console.log("No Super Events Found");
+      setSuperEvents([]);
+    }
+  }
+
+  const allEvents = [...superEvents, ...events].sort((a, b) => {
+    return new Date(b.dateStart).getTime() - new Date(a.dateStart).getTime();
+  });
+
+  console.log(allEvents);
+  
   if (loading) return <p className="text-center mt-12">Loading events...</p>;
-  if (events.length === 0)
+  if (allEvents.length === 0)
     return <p className="text-center mt-12">No events available.</p>;
 
   return (
@@ -77,7 +101,7 @@ export default function Events() {
           <div className="text-xl font-bold my-2">All Events</div>
 
           <div className="space-y-6">
-            {[...events].reverse().map((event) => (
+            {allEvents.map((event) => (
               <div
                 key={event._id}
                 className="rounded-md space-y-3 p-4 w-full border border-gray-200 gap-6"
@@ -92,6 +116,11 @@ export default function Events() {
 
                 <div className="flex flex-col justify-between w-full">
                   <div>
+                    {event.isSuperEvent && (
+                      <span className="inline-block px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-full mb-2">
+                        Super Competition
+                      </span>
+                    )}
                     <h2 className="text-xl md:text-2xl font-semibold">
                       {event.name}
                     </h2>
@@ -114,11 +143,16 @@ export default function Events() {
                         {new Date(event.dateStart).toLocaleDateString()} –{" "}
                         {new Date(event.dateEnd).toLocaleDateString()}
                       </p>
+                      {event.isSuperEvent && event.competitions && (
+                        <p>
+                          <strong>Sub-Events:</strong> {event.competitions.length}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <button className="mt-6 px-6 w-fit py-2 bg-gradient-to-tr from-yellow-400 to-yellow-800 text-white rounded-md font-medium border border-gray-300 transition cursor-pointer">
-                    <Link href={`/account/events/${event._id}`}>
+                    <Link href={`/account/events/${event.isSuperEvent ? 'super' : 'regular'}/${event._id}`}>
                       View Details
                     </Link>
                   </button>

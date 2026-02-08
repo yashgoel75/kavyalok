@@ -9,6 +9,8 @@ import { getFirebaseToken } from "@/utils";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import axios from "axios";
+import Link from "next/link";
 
 interface Competition {
   _id: string;
@@ -36,11 +38,15 @@ interface Competition {
     options?: string[];
     required?: boolean;
   }[];
+  competitions?: string[];
 }
 
 export default function CompetitionDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const type = params.type as string;
+  const isSuperEvent = type === "super";
+  console.log(isSuperEvent);
   const competitionId = typeof params.id === "string" ? params.id : "";
   const searchParams = useSearchParams();
   const paymentStatus = searchParams.get("payment");
@@ -53,6 +59,7 @@ export default function CompetitionDetailPage() {
   const [patched, setPatched] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [subEvents, setSubEvents] = useState<Competition[]>([]);
 
   const requiredAnswered =
     competition?.customQuestions
@@ -87,14 +94,37 @@ export default function CompetitionDetailPage() {
   useEffect(() => {
     async function fetchCompetition() {
       try {
-        const res = await fetch("/api/competitions");
-        const data = await res.json();
-        const comp = Array.isArray(data)
-          ? data.find((c: Competition) => c._id === competitionId)
-          : data?.data?.find((c: Competition) => c._id === competitionId);
-        setCompetition(comp || null);
-        if (comp.participants.length == comp.participantLimit) {
-          setIsLimitFull(true);
+        if (isSuperEvent) {
+          const res = await fetch("/api/supercompetitions");
+          const data = await res.json();
+          const comp = Array.isArray(data)
+            ? data.find((c: Competition) => c._id === competitionId)
+            : data?.data?.find((c: Competition) => c._id === competitionId);
+          setCompetition(comp || null);
+          const token = await getFirebaseToken();
+          if (comp.competitions && comp.competitions.length > 0) {
+            const subEventsPromises = comp.competitions.map((compId: string) =>
+              axios.get(`/api/competitions/${compId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              }),
+            );
+            const subEventsResults = await Promise.all(subEventsPromises);
+            setSubEvents(subEventsResults.map((r) => r.data.data));
+          }
+          console.log(comp);
+          if (comp.participants.length == comp.participantLimit) {
+            setIsLimitFull(true);
+          }
+        } else {
+          const res = await fetch("/api/competitions");
+          const data = await res.json();
+          const comp = Array.isArray(data)
+            ? data.find((c: Competition) => c._id === competitionId)
+            : data?.data?.find((c: Competition) => c._id === competitionId);
+          setCompetition(comp || null);
+          if (comp.participants.length == comp.participantLimit) {
+            setIsLimitFull(true);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch competition:", err);
@@ -338,55 +368,148 @@ export default function CompetitionDetailPage() {
             )}
 
             <aside className="space-y-4 p-5 max-h-screen border rounded-lg bg-gray-50 shadow-sm block md:hidden">
-            <h3 className="text-lg font-semibold mb-3">Event Details</h3>
-            <div className="space-y-2 text-gray-700">
-              <p>
-                <strong>Organization:</strong> {organization}
-              </p>
-              <p>
-                <strong>Mode:</strong> {mode}
-              </p>
-              {venue ? (
+              <h3 className="text-lg font-semibold mb-3">Event Details</h3>
+              <div className="space-y-2 text-gray-700">
                 <p>
-                  <strong>Venue:</strong> {venue}
+                  <strong>Organization:</strong> {organization}
                 </p>
-              ) : null}
-              <p>
-                <strong>Registration Deadline:</strong>{" "}
-                {new Date(registrationDeadline).toLocaleString("en-IN", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-              <p>
-                <strong>Date:</strong>{" "}
-                {new Date(dateStart).toLocaleDateString()} {dateEnd ? "–" : ""}{" "}
-                {dateEnd ? new Date(dateEnd).toLocaleDateString() : ""}
-              </p>
-              {timeStart ? (
+                {!isSuperEvent ? (
+                  <p>
+                    <strong>Mode:</strong> {mode}
+                  </p>
+                ) : null}
+                {!isSuperEvent && venue ? (
+                  <p>
+                    <strong>Venue:</strong> {venue}
+                  </p>
+                ) : null}
                 <p>
-                  <strong>Time:</strong> {timeStart}{" "}
-                  {timeEnd ? "- " + timeEnd : ""}
+                  <strong>Registration Deadline:</strong>{" "}
+                  {new Date(registrationDeadline).toLocaleString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </p>
-              ) : null}
-              <p>
-                <strong>Participant Limit:</strong> {participantLimit}
-              </p>
-              <p>
-                <strong>Category:</strong> {category}
-              </p>
-              <p>
-                <strong>Registration Fee:</strong> ₹{fee}
-              </p>
-              <p>
-                <strong>Registrations: </strong>
-                {participants.length} registered
-              </p>
-            </div>
-          </aside>
+                <p>
+                  <strong>Date:</strong>{" "}
+                  {new Date(dateStart).toLocaleDateString()}{" "}
+                  {dateEnd ? "–" : ""}{" "}
+                  {dateEnd ? new Date(dateEnd).toLocaleDateString() : ""}
+                </p>
+                {timeStart ? (
+                  <p>
+                    <strong>Time:</strong> {timeStart}{" "}
+                    {timeEnd ? "- " + timeEnd : ""}
+                  </p>
+                ) : null}
+                <p>
+                  <strong>Participant Limit:</strong> {participantLimit}
+                </p>
+                <p>
+                  <strong>Category:</strong> {category}
+                </p>
+                {!isSuperEvent ? (
+                  <p>
+                    <strong>Registration Fee:</strong> ₹{fee}
+                  </p>
+                ) : null}
+                <p>
+                  <strong>Registrations: </strong>
+                  {participants.length} registered
+                </p>
+              </div>
+            </aside>
+            {isSuperEvent && subEvents.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-2xl font-semibold mb-4">
+                  Sub-Events ({subEvents.length})
+                </h2>
+                <div className="space-y-4">
+                  {subEvents.map((subEvent, index) => (
+                    <div
+                      key={subEvent._id}
+                      className="border border-gray-200 rounded-md p-4 hover:shadow-md transition"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="inline-block px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded">
+                              Sub-Event {index + 1}
+                            </span>
+                            <h3 className="text-xl font-semibold">
+                              {subEvent.name}
+                            </h3>
+                          </div>
+
+                          {subEvent.coverPhoto && (
+                            <img
+                              src={subEvent.coverPhoto}
+                              alt={subEvent.name}
+                              className="rounded-md shadow-sm w-full h-48 object-cover mb-3"
+                            />
+                          )}
+
+                          <p
+                            className="text-gray-600 leading-relaxed mb-3"
+                            dangerouslySetInnerHTML={{
+                              __html:
+                                subEvent.about?.slice(0, 150) +
+                                (subEvent.about?.length > 150 ? "..." : ""),
+                            }}
+                          ></p>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                            {subEvent.mode && (
+                              <div>
+                                <strong>Mode:</strong> {subEvent.mode}
+                              </div>
+                            )}
+                            {subEvent.venue && (
+                              <div>
+                                <strong>Venue:</strong> {subEvent.venue}
+                              </div>
+                            )}
+                            <div>
+                              <strong>Date:</strong>{" "}
+                              {new Date(
+                                subEvent.dateStart,
+                              ).toLocaleDateString()}
+                            </div>
+                            {subEvent.timeStart && (
+                              <div>
+                                <strong>Time:</strong> {subEvent.timeStart}
+                              </div>
+                            )}
+                            {subEvent.fee !== undefined && (
+                              <div>
+                                <strong>Fee:</strong>{" "}
+                                {subEvent.fee ? `₹${subEvent.fee}` : "Free"}
+                              </div>
+                            )}
+                            <div>
+                              <strong>Participants:</strong>{" "}
+                              {subEvent.participants?.length || 0}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex gap-2">
+                        <Link
+                          href={`/competitions/regular/${subEvent._id}`}
+                          className="px-4 py-2 bg-gray-600 text-white rounded-md hover:shadow-md text-sm inline-block"
+                        >
+                          View Details
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {competition.customQuestions?.length > 0 && !isRegistered && (
               <section className="mt-8 space-y-5">
@@ -444,47 +567,49 @@ export default function CompetitionDetailPage() {
               </section>
             )}
 
-            <div className="mt-6">
-              {isRegistered ||
-              isNowRegistered ||
-              isLimitFull ||
-              isDeadlinePassed ? (
-                <button
-                  disabled
-                  className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
-                >
-                  {isLimitFull
-                    ? "Registrations Full"
-                    : isDeadlinePassed
-                      ? "Registration Closed"
-                      : "Already Registered"}
-                </button>
-              ) : fee !== 0 ? (
-                <button
-                  onClick={handlePayNow}
-                  disabled={!requiredAnswered}
-                  className={`px-6 py-2 ${
-                    requiredAnswered
-                      ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer"
-                      : "bg-gray-400 cursor-not-allowed"
-                  } text-white rounded-md transition`}
-                >
-                  Pay Now
-                </button>
-              ) : (
-                <button
-                  onClick={handleApply}
-                  disabled={!requiredAnswered}
-                  className={`px-6 py-2 ${
-                    requiredAnswered
-                      ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer"
-                      : "bg-gray-400 cursor-not-allowed"
-                  } text-white rounded-md transition`}
-                >
-                  Register Now
-                </button>
-              )}
-            </div>
+            {!isSuperEvent ? (
+              <div className="mt-6">
+                {isRegistered ||
+                isNowRegistered ||
+                isLimitFull ||
+                isDeadlinePassed ? (
+                  <button
+                    disabled
+                    className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed"
+                  >
+                    {isLimitFull
+                      ? "Registrations Full"
+                      : isDeadlinePassed
+                        ? "Registration Closed"
+                        : "Already Registered"}
+                  </button>
+                ) : fee !== 0 ? (
+                  <button
+                    onClick={handlePayNow}
+                    disabled={!requiredAnswered}
+                    className={`px-6 py-2 ${
+                      requiredAnswered
+                        ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer"
+                        : "bg-gray-400 cursor-not-allowed"
+                    } text-white rounded-md transition`}
+                  >
+                    Pay Now
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleApply}
+                    disabled={!requiredAnswered}
+                    className={`px-6 py-2 ${
+                      requiredAnswered
+                        ? "bg-yellow-500 hover:bg-yellow-600 cursor-pointer"
+                        : "bg-gray-400 cursor-not-allowed"
+                    } text-white rounded-md transition`}
+                  >
+                    Register Now
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
           <aside className="space-y-4 p-5 max-h-screen border rounded-lg bg-gray-50 shadow-sm hidden md:block">
             <h3 className="text-lg font-semibold mb-3">Event Details</h3>
@@ -492,10 +617,12 @@ export default function CompetitionDetailPage() {
               <p>
                 <strong>Organization:</strong> {organization}
               </p>
-              <p>
-                <strong>Mode:</strong> {mode}
-              </p>
-              {venue ? (
+              {!isSuperEvent ? (
+                <p>
+                  <strong>Mode:</strong> {mode}
+                </p>
+              ) : null}
+              {!isSuperEvent && venue ? (
                 <p>
                   <strong>Venue:</strong> {venue}
                 </p>
@@ -527,9 +654,11 @@ export default function CompetitionDetailPage() {
               <p>
                 <strong>Category:</strong> {category}
               </p>
-              <p>
-                <strong>Registration Fee:</strong> ₹{fee}
-              </p>
+              {!isSuperEvent ? (
+                <p>
+                  <strong>Registration Fee:</strong> ₹{fee}
+                </p>
+              ) : null}
               <p>
                 <strong>Registrations: </strong>
                 {participants.length} registered
