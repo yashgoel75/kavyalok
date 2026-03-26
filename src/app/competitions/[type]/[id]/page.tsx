@@ -15,6 +15,7 @@ import Link from "next/link";
 interface Competition {
   _id: string;
   coverPhoto: string;
+  owner?: string;
   name: string;
   about: string;
   organization: string;
@@ -57,7 +58,7 @@ export default function CompetitionDetailPage() {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [patched, setPatched] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [subEvents, setSubEvents] = useState<Competition[]>([]);
 
@@ -69,7 +70,10 @@ export default function CompetitionDetailPage() {
         return v !== undefined && v !== null && v !== "";
       }) ?? true;
 
-  const handleAnswerChange = (questionId: string, value: any) => {
+  const handleAnswerChange = (
+    questionId: string,
+    value: string | number,
+  ) => {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: value,
@@ -93,16 +97,22 @@ export default function CompetitionDetailPage() {
 
   useEffect(() => {
     async function fetchCompetition() {
+      if (!competitionId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         if (isSuperEvent) {
-          const res = await fetch("/api/supercompetitions");
+          const res = await fetch(`/api/supercompetitions/${competitionId}`, {
+            cache: "no-store",
+          });
           const data = await res.json();
-          const comp = Array.isArray(data)
-            ? data.find((c: Competition) => c._id === competitionId)
-            : data?.data?.find((c: Competition) => c._id === competitionId);
+          const comp = data?.data as Competition | undefined;
           setCompetition(comp || null);
           const token = await getFirebaseToken();
-          if (comp.competitions && comp.competitions.length > 0) {
+
+          if (comp?.competitions && comp.competitions.length > 0) {
             const subEventsPromises = comp.competitions.map((compId: string) =>
               axios.get(`/api/competitions/${compId}`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -112,17 +122,23 @@ export default function CompetitionDetailPage() {
             setSubEvents(subEventsResults.map((r) => r.data.data));
           }
           console.log(comp);
-          if (comp.participants.length == comp.participantLimit) {
+          if (
+            comp?.participants?.length === comp?.participantLimit &&
+            comp?.participantLimit !== undefined
+          ) {
             setIsLimitFull(true);
           }
         } else {
-          const res = await fetch("/api/competitions");
+          const res = await fetch(`/api/competitions/${competitionId}`, {
+            cache: "no-store",
+          });
           const data = await res.json();
-          const comp = Array.isArray(data)
-            ? data.find((c: Competition) => c._id === competitionId)
-            : data?.data?.find((c: Competition) => c._id === competitionId);
+          const comp = data?.data as Competition | undefined;
           setCompetition(comp || null);
-          if (comp.participants.length == comp.participantLimit) {
+          if (
+            comp?.participants?.length === comp?.participantLimit &&
+            comp?.participantLimit !== undefined
+          ) {
             setIsLimitFull(true);
           }
         }
@@ -133,7 +149,7 @@ export default function CompetitionDetailPage() {
       }
     }
     fetchCompetition();
-  }, [competitionId]);
+  }, [competitionId, isSuperEvent]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -144,10 +160,11 @@ export default function CompetitionDetailPage() {
         const timer = setTimeout(() => {
           router.replace("/auth/login");
         }, 1500);
+        return () => clearTimeout(timer);
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const [isDeadlinePassed, setIsDeadlinePassed] = useState(false);
 

@@ -33,6 +33,7 @@ interface Competition {
   prizePool: string[];
   customQuestions?: Array<{
     _id: string;
+    editorId?: string;
     question: string;
     type: string;
     options: string[];
@@ -49,7 +50,7 @@ interface Application {
   participantId: string;
   responses: Array<{
     questionId: string;
-    answer: any;
+    answer: string | number | boolean | string[] | Record<string, unknown> | null;
   }>;
   appliedAt: Date;
 }
@@ -64,7 +65,6 @@ export default function EventDetailsPage() {
   const id = params.id as string;
   const isSuperEvent = type === 'super';
   
-  const [user, setUser] = useState<User | null>(null);
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [subEvents, setSubEvents] = useState<Competition[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -75,20 +75,55 @@ export default function EventDetailsPage() {
   const [loadingApplications, setLoadingApplications] = useState<boolean>(false);
   const [selectedSubEventId, setSelectedSubEventId] = useState<string | null>(null);
 
+  function createEditorId() {
+    return `question-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function normalizeCompetitionData(data: Competition): Competition {
+    return {
+      ...data,
+      customQuestions: data.customQuestions?.map((question) => ({
+        ...question,
+        editorId: question.editorId || question._id || createEditorId(),
+      })),
+    };
+  }
+
+  function formatDateTimeLocal(value?: Date | string) {
+    if (!value) return "";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
   useEffect(() => {
+    let redirectTimer: ReturnType<typeof setTimeout> | undefined;
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
       if (user?.email) {
         fetchCompetition();
         return;
       } else {
-        const timer = setTimeout(() => {
+        redirectTimer = setTimeout(() => {
           router.replace("/auth/login");
         }, 1500);
       }
     });
-    return () => unsubscribe();
-  }, [id, type]);
+    return () => {
+      unsubscribe();
+      if (redirectTimer) {
+        clearTimeout(redirectTimer);
+      }
+    };
+  }, [id, type, router]);
 
   async function fetchCompetition() {
     try {
@@ -101,11 +136,12 @@ export default function EventDetailsPage() {
           },
         });
         if (res.data.success) {
-          setCompetition(res.data.data);
-          setFormData(res.data.data);
+          const normalizedData = normalizeCompetitionData(res.data.data);
+          setCompetition(normalizedData);
+          setFormData(normalizedData);
           
-          if (res.data.data.competitions && res.data.data.competitions.length > 0) {
-            const subEventsPromises = res.data.data.competitions.map((compId: string) =>
+          if (normalizedData.competitions && normalizedData.competitions.length > 0) {
+            const subEventsPromises = normalizedData.competitions.map((compId: string) =>
               axios.get(`/api/competitions/${compId}`, {
                 headers: { Authorization: `Bearer ${token}` },
               })
@@ -121,8 +157,9 @@ export default function EventDetailsPage() {
           },
         });
         if (res.data.success) {
-          setCompetition(res.data.data);
-          setFormData(res.data.data);
+          const normalizedData = normalizeCompetitionData(res.data.data);
+          setCompetition(normalizedData);
+          setFormData(normalizedData);
         }
       }
     } catch (error) {
@@ -158,13 +195,25 @@ export default function EventDetailsPage() {
   async function handleSave() {
     try {
       const token = await getFirebaseToken();
+      const sanitizedFormData = formData
+        ? {
+            ...formData,
+            customQuestions: formData.customQuestions?.map((question) => ({
+              _id: question._id,
+              question: question.question,
+              type: question.type,
+              options: question.options,
+              required: question.required,
+            })),
+          }
+        : formData;
       
       if (isSuperEvent) {
         const res = await axios.put(
           `/api/supercompetitions/${id}`,
           {
             isAdmin: true,
-            updates: formData,
+            updates: sanitizedFormData,
           },
           {
             headers: {
@@ -173,7 +222,7 @@ export default function EventDetailsPage() {
           },
         );
         if (res.data.success) {
-          setCompetition(res.data.data);
+          setCompetition(normalizeCompetitionData(res.data.data));
           setIsEditing(false);
           alert("Super Competition updated successfully!");
         }
@@ -182,7 +231,7 @@ export default function EventDetailsPage() {
           `/api/competitions/${id}`,
           {
             isAdmin: true,
-            updates: formData,
+            updates: sanitizedFormData,
           },
           {
             headers: {
@@ -191,7 +240,7 @@ export default function EventDetailsPage() {
           },
         );
         if (res.data.success) {
-          setCompetition(res.data.data);
+          setCompetition(normalizeCompetitionData(res.data.data));
           setIsEditing(false);
           alert("Competition updated successfully!");
         }
@@ -202,7 +251,10 @@ export default function EventDetailsPage() {
     }
   }
 
-  function handleInputChange(field: string, value: any) {
+  function handleInputChange(
+    field: string,
+    value: string | number | boolean,
+  ) {
     if (formData) {
       setFormData({ ...formData, [field]: value });
     }
@@ -232,7 +284,11 @@ export default function EventDetailsPage() {
     }
   }
 
-  function handleCustomQuestionChange(index: number, field: string, value: any) {
+  function handleCustomQuestionChange(
+    index: number,
+    field: string,
+    value: string | boolean | string[],
+  ) {
     if (formData && formData.customQuestions) {
       const questions = [...formData.customQuestions];
       questions[index] = { ...questions[index], [field]: value };
@@ -242,9 +298,10 @@ export default function EventDetailsPage() {
 
   function addCustomQuestion() {
     if (formData) {
-      const questions = formData.customQuestions || [];
+      const questions = [...(formData.customQuestions || [])];
       questions.push({
         _id: "",
+        editorId: createEditorId(),
         question: "",
         type: "text",
         options: [],
@@ -578,7 +635,7 @@ export default function EventDetailsPage() {
                     type="datetime-local"
                     value={
                       formData.registrationDeadline
-                        ? new Date(formData.registrationDeadline).toISOString().slice(0, 16)
+                        ? formatDateTimeLocal(formData.registrationDeadline)
                         : ""
                     }
                     onChange={(e) => handleInputChange("registrationDeadline", e.target.value)}
@@ -670,7 +727,10 @@ export default function EventDetailsPage() {
                   <div>
                     <label className="block text-sm font-medium mb-2">Custom Questions</label>
                     {formData.customQuestions?.map((question, index) => (
-                      <div key={index} className="border border-gray-300 rounded-md p-4 mb-4">
+                      <div
+                        key={question.editorId || question._id || index}
+                        className="border border-gray-300 rounded-md p-4 mb-4"
+                      >
                         <div className="space-y-3">
                           <input
                             type="text"
