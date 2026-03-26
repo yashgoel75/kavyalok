@@ -104,6 +104,14 @@ export default function EventDetailsPage() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   }
 
+  function formatResponseAnswer(
+    answer: Application["responses"][number]["answer"],
+  ) {
+    if (answer === null) return "No response";
+    if (typeof answer === "object") return JSON.stringify(answer);
+    return String(answer);
+  }
+
   useEffect(() => {
     let redirectTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -454,18 +462,12 @@ export default function EventDetailsPage() {
                               className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate"
                               title={
                                 response
-                                  ? typeof response.answer === "object"
-                                    ? JSON.stringify(response.answer)
-                                    : response.answer
+                                  ? formatResponseAnswer(response.answer)
                                   : "No response"
                               }
                             >
                               {response ? (
-                                typeof response.answer === "object" ? (
-                                  JSON.stringify(response.answer)
-                                ) : (
-                                  response.answer
-                                )
+                                formatResponseAnswer(response.answer)
                               ) : (
                                 <span className="text-gray-400 italic">No response</span>
                               )}
