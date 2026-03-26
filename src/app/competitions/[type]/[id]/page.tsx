@@ -342,7 +342,10 @@ export default function CompetitionDetailPage() {
   const { coverPhoto, name, about, participantLimit, mode, venue, organization, dateStart, dateEnd,
     timeStart, timeEnd, registrationDeadline, category, fee, judgingCriteria, prizePool, participants } = competition;
 
-  const isRegistered = firebaseUser?.email && participants?.includes(firebaseUser.email);
+  const isRegistered = Boolean(
+    firebaseUser?.email && participants?.includes(firebaseUser.email),
+  );
+  const hasRegistered = isRegistered || isNowRegistered;
   const fillPct = participantLimit > 0 ? Math.min((participants.length / participantLimit) * 100, 100) : 0;
 
   const DetailRow = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) => (
@@ -415,8 +418,8 @@ export default function CompetitionDetailPage() {
   );
 
   const RegisterButton = () => {
-    const disabled = isRegistered || isNowRegistered || isLimitFull || isDeadlinePassed;
-    const label = isLimitFull ? "Registrations Full" : isDeadlinePassed ? "Registration Closed" : (isRegistered || isNowRegistered) ? "Already Registered" : fee !== 0 ? "Pay & Register" : "Register Now";
+    const disabled = hasRegistered || isLimitFull || isDeadlinePassed;
+    const label = isLimitFull ? "Registrations Full" : isDeadlinePassed ? "Registration Closed" : hasRegistered ? "Already Registered" : fee !== 0 ? "Pay & Register" : "Register Now";
     const action = fee !== 0 ? handlePayNow : handleApply;
 
     return (
@@ -651,7 +654,7 @@ export default function CompetitionDetailPage() {
               </section>
             )}
 
-            {competition.customQuestions?.length > 0 && !isRegistered && (
+            {competition.customQuestions?.length > 0 && !hasRegistered && (
               <section style={{ marginBottom: 32 }}>
                 <h2 style={{ fontSize: 22, fontWeight: 600, color: "#0f172a", marginBottom: 4, letterSpacing: "-0.01em" }}>
                   Application Questions
