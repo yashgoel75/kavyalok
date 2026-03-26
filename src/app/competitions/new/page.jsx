@@ -32,6 +32,26 @@ export default function NewCompetitionPage() {
     prizePool: "[]",
   });
 
+  const createSubEvent = useCallback(() => ({
+    coverPhoto: "",
+    name: "",
+    organization: superEventData.organization || "",
+    about: "",
+    participantLimit: "",
+    mode: "",
+    venue: "",
+    dateStart: "",
+    dateEnd: "",
+    timeStart: "",
+    timeEnd: "",
+    registrationDeadline: superEventData.registrationDeadline || "",
+    category: superEventData.category || "",
+    fee: "",
+    judgingCriteria: "[]",
+    prizePool: "[]",
+    customQuestions: [],
+  }), [superEventData.category, superEventData.organization, superEventData.registrationDeadline]);
+
   // Sub-events array for super competition
   const [subEvents, setSubEvents] = useState([]);
 
@@ -49,6 +69,7 @@ export default function NewCompetitionPage() {
     dateEnd: "",
     timeStart: "",
     timeEnd: "",
+    registrationDeadline: "",
     category: "",
     fee: "",
     judgingCriteria: "[]",
@@ -68,27 +89,29 @@ export default function NewCompetitionPage() {
     if (isSuperEvent && subEvents.length === 0) {
       initializeSubEvents(numberOfSubEvents);
     }
-  }, [isSuperEvent]);
+  }, [createSubEvent, isSuperEvent, numberOfSubEvents, subEvents.length]);
+
+  useEffect(() => {
+    if (!isSuperEvent || subEvents.length === 0) return;
+
+    setSubEvents((prev) =>
+      prev.map((subEvent) => ({
+        ...subEvent,
+        organization: superEventData.organization || "",
+        category: superEventData.category || "",
+        registrationDeadline: superEventData.registrationDeadline || "",
+      })),
+    );
+  }, [
+    isSuperEvent,
+    subEvents.length,
+    superEventData.category,
+    superEventData.organization,
+    superEventData.registrationDeadline,
+  ]);
 
   const initializeSubEvents = (count) => {
-    const events = Array.from({ length: count }, (_, i) => ({
-      coverPhoto: "",
-      name: "",
-      organization: superEventData.organization || "",
-      about: "",
-      participantLimit: "",
-      mode: "",
-      venue: "",
-      dateStart: "",
-      dateEnd: "",
-      timeStart: "",
-      timeEnd: "",
-      category: superEventData.category || "",
-      fee: "",
-      judgingCriteria: "[]",
-      prizePool: "[]",
-      customQuestions: [],
-    }));
+    const events = Array.from({ length: count }, () => createSubEvent());
     setSubEvents(events);
   };
 
@@ -98,24 +121,10 @@ export default function NewCompetitionPage() {
     
     if (subEvents.length < newCount) {
       // Add new sub-events
-      const newEvents = Array.from({ length: newCount - subEvents.length }, () => ({
-        coverPhoto: "",
-        name: "",
-        organization: superEventData.organization || "",
-        about: "",
-        participantLimit: "",
-        mode: "",
-        venue: "",
-        dateStart: "",
-        dateEnd: "",
-        timeStart: "",
-        timeEnd: "",
-        category: superEventData.category || "",
-        fee: "",
-        judgingCriteria: "[]",
-        prizePool: "[]",
-        customQuestions: [],
-      }));
+      const newEvents = Array.from(
+        { length: newCount - subEvents.length },
+        () => createSubEvent(),
+      );
       setSubEvents([...subEvents, ...newEvents]);
     } else if (subEvents.length > newCount) {
       // Remove excess sub-events
@@ -756,6 +765,15 @@ export default function NewCompetitionPage() {
               value={formData.participantLimit}
               onChange={(e) =>
                 setFormData({ ...formData, participantLimit: e.target.value })
+              }
+            />
+
+            <input
+              type="date"
+              className="border p-2 rounded"
+              value={formData.registrationDeadline}
+              onChange={(e) =>
+                setFormData({ ...formData, registrationDeadline: e.target.value })
               }
             />
 

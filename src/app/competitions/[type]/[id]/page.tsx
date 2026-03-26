@@ -186,6 +186,7 @@ export default function CompetitionDetailPage() {
           const res = await fetch(`/api/competitions/${competitionId}`, { cache: "no-store" });
           const data = await res.json();
           const comp = data?.data as Competition | undefined;
+          console.log(comp);
           setCompetition(comp || null);
           if (comp?.participants?.length === comp?.participantLimit && comp?.participantLimit !== undefined) {
             setIsLimitFull(true);

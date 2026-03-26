@@ -47,6 +47,7 @@ export const POST = async (req) => {
       dateEnd: body.dateEnd,
       timeStart: body.timeStart,
       timeEnd: body.timeEnd,
+      registrationDeadline: body.registrationDeadline,
       category: body.category,
       fee: body.fee,
       judgingCriteria: body.judgingCriteria || [],
