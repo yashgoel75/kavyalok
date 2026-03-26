@@ -5,9 +5,9 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const status = formData.get("status") as string;
     const productinfo = formData.get("productinfo") as string;
-    const type = formData.get("type") as string;
+    const type = (formData.get("udf2") as string) || "regular";
     const email = formData.get("email") as string;
-    const responsesRaw = formData.get("udf1") as string;
+    const responsesRaw = (formData.get("udf1") as string) || "[]";
 
     if (!status || !productinfo) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
                 sec--;
                 document.getElementById("timer").innerText = sec;
                 if (sec === 1) {
-                    window.location.href = "/competitions/${type}/${productinfo}";
+                    window.location.href = "/competitions/${type}/${productinfo}?payment=success";
                 }
             }, 1000);
         });

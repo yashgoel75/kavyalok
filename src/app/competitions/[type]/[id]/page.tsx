@@ -124,6 +124,20 @@ export default function CompetitionDetailPage() {
         return v !== undefined && v !== null && v !== "";
       }) ?? true;
 
+  const markUserAsRegistered = (email: string) => {
+    setCompetition((prev) => {
+      if (!prev || prev.participants.includes(email)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        participants: [...prev.participants, email],
+      };
+    });
+    setIsNowRegistered(true);
+  };
+
   const handleAnswerChange = (questionId: string, value: string | number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
@@ -138,10 +152,15 @@ export default function CompetitionDetailPage() {
   useEffect(() => {
     if (paymentStatus === "success") {
       setShowSuccess(true);
+      if (firebaseUser?.email) {
+        markUserAsRegistered(firebaseUser.email);
+      } else {
+        setIsNowRegistered(true);
+      }
       const timer = setTimeout(() => setShowSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [paymentStatus]);
+  }, [firebaseUser?.email, paymentStatus]);
 
   useEffect(() => {
     async function fetchCompetition() {
@@ -250,7 +269,9 @@ export default function CompetitionDetailPage() {
       const data = await res.json();
       if (!data.success) { alert(data.error || "Failed to apply"); return; }
       alert("Application submitted successfully!");
-      setIsNowRegistered(true);
+      if (firebaseUser.email) {
+        markUserAsRegistered(firebaseUser.email);
+      }
     } catch (err) {
       console.error(err);
       alert("Something went wrong");
@@ -275,6 +296,7 @@ export default function CompetitionDetailPage() {
         phone: firebaseUser.phoneNumber || "",
         productinfo: competition._id,
         responses,
+        type,
       };
       const res = await fetch("/api/payu/checkout", {
         method: "POST",
