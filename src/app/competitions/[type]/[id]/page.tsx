@@ -268,6 +268,7 @@ export default function CompetitionDetailPage() {
         phone: firebaseUser.phoneNumber || "",
         productinfo: competition._id,
         responses: responses,
+        type: isSuperEvent ? "super" : "regular",
       };
 
       const res = await fetch("/api/payu/checkout", {

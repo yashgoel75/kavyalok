@@ -5,6 +5,7 @@ export async function POST(req: Request) {
         const formData = await req.formData();
         const status = formData.get("status") as string;
         const productinfo = formData.get("productinfo") as string;
+        const type = formData.get("type") as string;
         const email = formData.get("email") as string;
 
         if (!status || !productinfo) {
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
                 sec--;
                 document.getElementById("timer").innerText = sec;
                 if (sec === 1) {
-                    window.location.href = "/competitions/${productinfo}";
+                    window.location.href = "/competitions/${type}/${productinfo}";
                 }
             }, 1000);
         });

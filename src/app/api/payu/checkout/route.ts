@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const key = process.env.PAYU_KEY;
     const salt = process.env.PAYU_SALT;
 
-    const { amount, firstname, email, phone, productinfo, responses } = body;
+    const { amount, firstname, email, phone, productinfo, responses, type } = body;
 
     if (!amount || !firstname || !email || !productinfo) {
       return new Response(
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       firstname,
       email,
       responsesString, // udf1
-      "", // udf2
+      type, // udf2
       "", // udf3
       "", // udf4
       "", // udf5
@@ -65,6 +65,7 @@ export async function POST(req: Request) {
           email,
           phone: phone || "",
           udf1: responsesString,
+          udf2: type,
           surl: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payu/success`,
           furl: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payu/failure`,
           hash,
