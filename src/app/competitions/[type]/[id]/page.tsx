@@ -370,12 +370,12 @@ export default function CompetitionDetailPage() {
       top: 24,
     }}>
       <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid #f3f4f6" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        {!isSuperEvent ? <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", letterSpacing: "0.06em", textTransform: "uppercase" }}>Capacity</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: fillPct >= 90 ? "#ef4444" : "#374151", fontFamily: "'DM Mono', monospace" }}>
             {participants.length} / {participantLimit}
           </span>
-        </div>
+        </div> : null}
         <div style={{ height: 6, borderRadius: 999, background: "#f3f4f6", overflow: "hidden" }}>
           <div style={{
             height: "100%",
