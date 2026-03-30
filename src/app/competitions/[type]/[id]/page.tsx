@@ -96,6 +96,18 @@ const Icon = {
 };
 
 export default function CompetitionDetailPage() {
+  const formatISTDateTime = (value: string | Date) =>
+    new Date(value).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
+      timeZoneName: "short",
+    });
+
   const params = useParams();
   const router = useRouter();
   const type = params.type as string;
@@ -214,13 +226,13 @@ export default function CompetitionDetailPage() {
 
   function TimerPill({ registrationDeadline }: { registrationDeadline: Date }) {
     const deadline = new Date(registrationDeadline).getTime();
-    setIsDeadlinePassed(new Date(registrationDeadline).getTime() <= Date.now());
     const [timeLeft, setTimeLeft] = useState("");
 
     useEffect(() => {
       const update = () => {
         const now = Date.now();
         const diff = deadline - now;
+        setIsDeadlinePassed(diff <= 0);
         if (diff <= 0) { setTimeLeft("Closed"); return; }
         const d = Math.floor(diff / (1000 * 60 * 60 * 24));
         const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
@@ -403,7 +415,7 @@ export default function CompetitionDetailPage() {
         <DetailRow
           icon={<Icon.Clock />}
           label="Reg. Deadline"
-          value={new Date(registrationDeadline).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+          value={formatISTDateTime(registrationDeadline)}
         />
         {!isSuperEvent && (
           <DetailRow icon={<Icon.Rupee />} label="Entry Fee" value={fee === 0 ? "Free" : `₹${fee}`} />
