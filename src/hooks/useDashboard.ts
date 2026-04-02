@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getAuth, signOut, onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
@@ -43,7 +43,7 @@ export function useDashboard() {
     // Interactions
     const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
     const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
-    const [fetchedInteractionIds, setFetchedInteractionIds] = useState<Set<string>>(new Set());
+    const fetchedInteractionIdsRef = useRef<Set<string>>(new Set());
 
     // 1. Auth & User Data Logic
     useEffect(() => {
@@ -131,7 +131,7 @@ export function useDashboard() {
         const fetchInteractions = async () => {
             const newPostIds = posts
                 .map((p) => p._id)
-                .filter((id) => !fetchedInteractionIds.has(id));
+                .filter((id) => !fetchedInteractionIdsRef.current.has(id));
 
             if (newPostIds.length === 0) return;
 
@@ -166,11 +166,7 @@ export function useDashboard() {
                         return updated;
                     });
 
-                    setFetchedInteractionIds((prev) => {
-                        const updated = new Set(prev);
-                        newPostIds.forEach((id) => updated.add(id));
-                        return updated;
-                    });
+                    newPostIds.forEach((id) => fetchedInteractionIdsRef.current.add(id));
                 }
             } catch (err) {
                 console.error("Failed to load interactions", err);
@@ -178,7 +174,7 @@ export function useDashboard() {
         };
 
         fetchInteractions();
-    }, [user, posts, fetchedInteractionIds, page]);
+    }, [user, posts, page]);
 
     const handleLogout = async () => {
         try {

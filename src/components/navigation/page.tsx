@@ -48,14 +48,7 @@ export default function Navigation() {
     { icon: PlusSquare, url: "/account/createPost", title: "New Post" },
     { icon: Compass, url: "/explore", title: "Explore" },
     { icon: GraduationCap, url: "/competitions", title: "Competitions" },
-    // {
-    //   icon: GraduationCap,
-
-    //   url: "/competitions",
-    //   title: "Competitions",
-    // },
-    // { icon: Settings, url: "/settings", title: "Settings" },
-
+    { icon: Settings, url: "/settings", title: "Settings" },
   ];
 
   const isActive = (url: string) => pathname.startsWith(url);

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Check, MessageCircle, Send } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -47,7 +47,7 @@ interface PostCardProps {
   router: AppRouterInstance;
 }
 
-export default function PostCard({
+export default React.memo(function PostCard({
   post,
   firebaseUser,
   userData,
@@ -299,4 +299,4 @@ export default function PostCard({
       </div>
     </div>
   );
-}
+});

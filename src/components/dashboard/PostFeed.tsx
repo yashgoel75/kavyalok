@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import PostCard from "./PostCard"; // Assuming this exists
 import { User, Post } from "@/hooks/useDashboard";
 import { useRouter } from "next/navigation";
@@ -48,10 +48,11 @@ export default function PostFeed({
       : "?";
 
   // Filter logic
-  const displayPosts =
-    filter === "ALL"
+  const displayPosts = useMemo(() => {
+    return filter === "ALL"
       ? posts
       : posts?.filter((p) => userData?.following?.includes(p.author.email));
+  }, [filter, posts, userData?.following]);
 
   return (
     <div className="max-w-6xl mx-auto p-6">
