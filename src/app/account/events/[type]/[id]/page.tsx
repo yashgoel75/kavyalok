@@ -11,6 +11,7 @@ import axios from "axios";
 import { getFirebaseToken } from "@/utils";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { Activity, DollarSign, Building, Users } from "lucide-react";
 
 interface Competition {
   _id: string;
@@ -42,6 +43,12 @@ interface Competition {
   participants: string[];
   competitions?: string[];
   isSuperEvent?: boolean;
+  bankDetails?: {
+    accountNumber: string;
+    ifsc: string;
+    holderName: string;
+  };
+  bankVerificationStatus?: string;
 }
 
 interface Application {
@@ -74,6 +81,61 @@ export default function EventDetailsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loadingApplications, setLoadingApplications] = useState<boolean>(false);
   const [selectedSubEventId, setSelectedSubEventId] = useState<string | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'details' | 'applications' | 'analytics' | 'payments' | 'bank'>('details');
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [payments, setPayments] = useState<any[]>([]);
+
+  async function fetchAnalytics() {
+    try {
+      const token = await getFirebaseToken();
+      const res = await axios.get(`/api/competitions/${id}/analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setAnalyticsData(res.data.data);
+        setPayments(res.data.data.payments || []);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function handleRefund(txnid: string, amount: number, paymentId: string, payuId: string) {
+    if (!confirm(`Are you sure you want to refund ₹${amount}?`)) return;
+    try {
+       const res = await axios.post('/api/payu/refund', { txnid, amount, paymentId, payuId });
+       if (res.data.success) {
+           alert("Refund successful");
+           fetchAnalytics(); 
+       } else {
+           alert("Refund failed: " + res.data.error);
+       }
+    } catch (e: any) {
+       console.error(e);
+       alert("Refund failed");
+    }
+  }
+
+  async function verifyBank(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formData?.bankDetails?.accountNumber || !formData?.bankDetails?.ifsc) {
+        alert("Enter required details");
+        return;
+    }
+    try {
+       const res = await axios.post('/api/payu/verify-bank', {
+           competitionId: id,
+           ...formData.bankDetails
+       });
+       if (res.data.success) {
+           alert("Bank Verified!");
+           fetchCompetition(); 
+       }
+    } catch (e) {
+        alert("Bank Verification Failed.");
+    }
+  }
 
   function createEditorId() {
     return `question-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -190,6 +252,7 @@ export default function EventDetailsPage() {
       if (res.data.success) {
         setApplications(res.data.data);
         setShowApplications(true);
+        setActiveTab('applications');
         setSelectedSubEventId(competitionId || null);
       }
     } catch (error) {
@@ -350,30 +413,61 @@ export default function EventDetailsPage() {
             )}
           </div>
           <div className="space-x-2">
-            {!isEditing && !showApplications && (
+            {!isEditing && (
               <>
+                <button
+                  onClick={() => { setActiveTab('details'); setShowApplications(false); }}
+                  className={`px-4 py-2 ${activeTab === 'details' ? 'bg-gray-800 text-white' : 'bg-gray-200'} rounded-md text-sm font-medium`}
+                >
+                  Details
+                </button>
                 {!isSuperEvent && (
                   <button
                     onClick={() => fetchApplications()}
                     disabled={loadingApplications}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:shadow-md disabled:opacity-50"
+                    className={`px-4 py-2 ${activeTab === 'applications' ? 'bg-blue-600 text-white' : 'bg-gray-200'} rounded-md text-sm font-medium`}
                   >
-                    {loadingApplications ? "Loading..." : "View Applications"}
+                    Applications
+                  </button>
+                )}
+                {!isSuperEvent && (
+                  <button
+                    onClick={() => { setActiveTab('analytics'); fetchAnalytics(); }}
+                    className={`px-4 py-2 ${activeTab === 'analytics' ? 'bg-purple-600 text-white' : 'bg-gray-200'} rounded-md text-sm font-medium`}
+                  >
+                    Analytics
+                  </button>
+                )}
+                {!isSuperEvent && (
+                  <button
+                    onClick={() => { setActiveTab('payments'); fetchAnalytics(); }}
+                    className={`px-4 py-2 ${activeTab === 'payments' ? 'bg-green-600 text-white' : 'bg-gray-200'} rounded-md text-sm font-medium`}
+                  >
+                    Payments Collected
                   </button>
                 )}
                 <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:shadow-md"
+                    onClick={() => setActiveTab('bank')}
+                    className={`px-4 py-2 ${activeTab === 'bank' ? 'bg-indigo-600 text-white' : 'bg-gray-200'} rounded-md text-sm font-medium`}
                 >
-                  Edit Event
+                    Bank & Payouts
                 </button>
+                
+                {activeTab === 'details' && (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:shadow-md text-sm font-medium ml-4"
+                    >
+                      Edit Event
+                    </button>
+                )}
               </>
             )}
             {isEditing && (
               <>
                 <button
                   onClick={handleSave}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:shadow-md"
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:shadow-md text-sm font-medium"
                 >
                   Save Changes
                 </button>
@@ -382,22 +476,11 @@ export default function EventDetailsPage() {
                     setIsEditing(false);
                     setFormData(competition);
                   }}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:shadow-md"
+                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:shadow-md text-sm font-medium"
                 >
                   Cancel
                 </button>
               </>
-            )}
-            {showApplications && (
-              <button
-                onClick={() => {
-                  setShowApplications(false);
-                  setSelectedSubEventId(null);
-                }}
-                className="px-4 py-2 bg-gray-500 text-white rounded-md hover:shadow-md"
-              >
-                Back to Details
-              </button>
             )}
           </div>
         </div>
@@ -505,6 +588,137 @@ export default function EventDetailsPage() {
               </div>
             )}
           </div>
+        ) : activeTab === 'analytics' ? (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold">Analytics</h2>
+            {!analyticsData ? (
+                <p>Loading analytics...</p>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition flex items-center gap-4">
+                        <div className="p-4 bg-purple-100 rounded-full text-purple-600">
+                            <Activity size={32} />
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-500 font-medium">Total Applications</p>
+                            <p className="text-3xl font-bold">{analyticsData.totalApplications}</p>
+                        </div>
+                    </div>
+                    <div className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition flex items-center gap-4">
+                        <div className="p-4 bg-green-100 rounded-full text-green-600">
+                            <DollarSign size={32} />
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-500 font-medium">Total Revenue Collected</p>
+                            <p className="text-3xl font-bold">₹{analyticsData.totalCollected}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+          </div>
+        ) : activeTab === 'payments' ? (
+           <div className="space-y-6">
+             <h2 className="text-2xl font-semibold">Payments Collected ({payments.length})</h2>
+             {payments.length === 0 ? (
+                 <p className="text-gray-600">No payments collected yet.</p>
+             ) : (
+                <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Participant</th>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Txn ID</th>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                           {payments.map((p) => (
+                               <tr key={p._id}>
+                                   <td className="px-6 py-4">{new Date(p.appliedAt).toLocaleDateString()}</td>
+                                   <td className="px-6 py-4">{p.participantId}</td>
+                                   <td className="px-6 py-4">{p.txnid}</td>
+                                   <td className="px-6 py-4 font-semibold text-green-600">₹{p.amount}</td>
+                                   <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 text-xs rounded-full ${p.status === 'success' ? 'bg-green-100 text-green-800' : p.status === 'refunded' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>
+                                            {p.status}
+                                        </span>
+                                   </td>
+                                   <td className="px-6 py-4">
+                                        {p.status === 'success' && (
+                                            <button 
+                                                onClick={() => handleRefund(p.txnid, p.amount, p._id, p.payuId)}
+                                                className="text-red-600 hover:text-red-800 underline"
+                                            >
+                                                Issue Refund
+                                            </button>
+                                        )}
+                                   </td>
+                               </tr>
+                           ))}
+                        </tbody>
+                    </table>
+                </div>
+             )}
+           </div>
+        ) : activeTab === 'bank' ? (
+           <div className="space-y-6 max-w-2xl">
+             <h2 className="text-2xl font-semibold">Bank Verification & Payouts</h2>
+             <div className="p-6 border border-gray-200 rounded-lg bg-gray-50 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium flex items-center gap-2"><Building size={20} className="text-gray-600"/> Payout Settings</h3>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${competition.bankVerificationStatus === 'verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        {competition.bankVerificationStatus?.toUpperCase() || 'PENDING'}
+                    </span>
+                </div>
+                <p className="text-sm text-gray-600 mb-6">Enter your bank details to allow Kavyalok to dispatch collected payments to your account securely via PayU.</p>
+                
+                <form onSubmit={verifyBank} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Account Holder Name</label>
+                        <input 
+                            type="text" 
+                            required
+                            disabled={competition.bankVerificationStatus === 'verified'}
+                            value={formData?.bankDetails?.holderName || ''}
+                            onChange={(e) => setFormData(prev => prev ? ({ ...prev, bankDetails: { ...(prev.bankDetails as any), holderName: e.target.value }}) : prev)}
+                            className="w-full border border-gray-300 rounded px-3 py-2 disabled:bg-gray-100"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Bank Account Number</label>
+                        <input 
+                            type="password" 
+                            required
+                            disabled={competition.bankVerificationStatus === 'verified'}
+                            placeholder="********"
+                            value={formData?.bankDetails?.accountNumber || ''}
+                            onChange={(e) => setFormData(prev => prev ? ({ ...prev, bankDetails: { ...(prev.bankDetails as any), accountNumber: e.target.value }}) : prev)}
+                            className="w-full border border-gray-300 rounded px-3 py-2 disabled:bg-gray-100"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">IFSC Code</label>
+                        <input 
+                            type="text" 
+                            required
+                            disabled={competition.bankVerificationStatus === 'verified'}
+                            value={formData?.bankDetails?.ifsc || ''}
+                            onChange={(e) => setFormData(prev => prev ? ({ ...prev, bankDetails: { ...(prev.bankDetails as any), ifsc: e.target.value }}) : prev)}
+                            className="w-full border border-gray-300 rounded px-3 py-2 disabled:bg-gray-100"
+                        />
+                    </div>
+                    
+                    {competition.bankVerificationStatus !== 'verified' && (
+                        <button type="submit" className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
+                            Verify Bank Details securely with PayU
+                        </button>
+                    )}
+                </form>
+             </div>
+           </div>
         ) : (
           <div className="space-y-6">
             {isEditing && formData ? (

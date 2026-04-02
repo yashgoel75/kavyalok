@@ -51,6 +51,13 @@ const CompetitionSchema = new Schema({
     participants: [String],
     parentSuperEvent: { type: Schema.Types.ObjectId, ref: 'superCompetition', default: null },
     isSuperEvent: { type: Boolean, default: false },
+    bankDetails: {
+        accountNumber: { type: String },
+        ifsc: { type: String },
+        holderName: { type: String }
+    },
+    bankVerificationStatus: { type: String, enum: ['pending', 'verified', 'failed'], default: 'pending' },
+    payuBeneficiaryId: { type: String },
 });
 
 const CompetitionApplicationSchema = new Schema({
@@ -143,3 +150,25 @@ export const CompetitionApplication = mongoose.models.CompetitionApplication || 
 export const User = mongoose.models.User || mongoose.model("User", UserSchema);
 export const Post = mongoose.models.Post || mongoose.model("Post", PostSchema);
 export const Comment = mongoose.models.Comment || mongoose.model("Comment", CommentSchema);
+
+const PaymentSchema = new Schema({
+    competitionId: { type: Schema.Types.ObjectId, ref: 'Competition', required: true, index: true },
+    participantId: { type: String, required: true },
+    txnid: { type: String, required: true, unique: true },
+    payuId: { type: String },
+    amount: { type: Number, required: true },
+    status: { type: String, required: true },
+    appliedAt: { type: Date, default: Date.now },
+});
+
+const RefundSchema = new Schema({
+    paymentId: { type: Schema.Types.ObjectId, ref: 'Payment', required: true },
+    txnid: { type: String, required: true },
+    refundId: { type: String },
+    amount: { type: Number, required: true },
+    status: { type: String, default: 'pending' },
+    createdAt: { type: Date, default: Date.now },
+});
+
+export const Payment = mongoose.models.Payment || mongoose.model("Payment", PaymentSchema);
+export const Refund = mongoose.models.Refund || mongoose.model("Refund", RefundSchema);

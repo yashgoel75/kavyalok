@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { Payment } from "../../../../../db/schema";
+import { register } from "@/instrumentation";
 
 export async function POST(req: Request) {
   try {
@@ -15,9 +17,31 @@ export async function POST(req: Request) {
 
     const responses = JSON.parse(responsesRaw);
 
+    const txnid = formData.get("txnid") as string;
+    const amount = Number(formData.get("amount"));
+    const payuId = formData.get("mihpayid") as string;
+
     console.log(status);
     console.log(email);
     console.log(productinfo);
+    
+    try {
+      await register();
+      
+      const newPayment = await Payment.create({
+        competitionId: productinfo,
+        participantId: email,
+        txnid: txnid || `fallback_${Date.now()}`,
+        payuId: payuId || "",
+        amount: amount || 0,
+        status: status || "success"
+      });
+      
+      console.log("Payment logged successfully", newPayment._id);
+    } catch (saveError) {
+      console.error("Failed to save payment record:", saveError);
+    }
+
     try {
       await fetch(`${new URL(req.url).origin}/api/competitions/${productinfo}`, {
         method: "PUT",
