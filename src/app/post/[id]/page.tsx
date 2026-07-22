@@ -749,7 +749,7 @@ export default function PostPage() {
                     rows={3}
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Share your thoughts on this poem/post..."
+                    placeholder="Share your response or perspective on this work..."
                   />
                   <div className="flex justify-end">
                     <button
