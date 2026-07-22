@@ -9,40 +9,46 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "9", 10);
+  const excludeEmail = searchParams.get("excludeEmail");
 
   const skip = (page - 1) * limit;
-  const cacheKey = `posts:page:${page}:limit:${limit}`;
+  const cacheKey = `posts:page:${page}:limit:${limit}:${excludeEmail || ""}`;
 
   // Check cache
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    return NextResponse.json(cached);
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+  } catch (err) {
+    console.error("Redis get error:", err);
   }
 
-  const posts = await Post.find({})
-  .sort({ createdAt: -1 })
-  .skip(skip)
-  .limit(limit)
-  .populate({
-    path: "author",
-    select:
-      "-posts -bio -bookmarks -instagram -snapchat -followers -following -likes -notifications -createdAt -updatedAt -__v",
-  })
-  .select({
-    title: 1,
-    content: 1,
-    picture: 1,
-    author: 1,
-    likes: 1,
-    comments: 1,
-    color: 1,
-    createdAt: 1,
-    _id: 1,
-  })
-  .lean();
+  const query = excludeEmail ? { "author.email": { $ne: excludeEmail } } : {};
 
-
-  const total = await Post.countDocuments();
+  const [posts, total] = await Promise.all([
+    Post.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "author",
+        select: "name username profilePicture isVerified email",
+      })
+      .select({
+        title: 1,
+        content: 1,
+        picture: 1,
+        author: 1,
+        likes: 1,
+        comments: 1,
+        color: 1,
+        createdAt: 1,
+        _id: 1,
+      })
+      .lean(),
+    Post.estimatedDocumentCount(),
+  ]);
 
   const response = {
     posts,
@@ -50,8 +56,13 @@ export async function GET(req: Request) {
     hasMore: skip + limit < total,
   };
 
-  // Cache result (5 min)
-  await redis.set(cacheKey, response, { ex: 300 });
+  // Cache result (2 min)
+  try {
+    await redis.set(cacheKey, response, { ex: 120 });
+  } catch (err) {
+    console.error("Redis set error:", err);
+  }
 
   return NextResponse.json(response);
 }
+

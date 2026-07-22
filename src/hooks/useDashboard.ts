@@ -45,7 +45,7 @@ export function useDashboard() {
     const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
     const fetchedInteractionIdsRef = useRef<Set<string>>(new Set());
 
-    // 1. Auth & User Data Logic
+    // In-memory cache for instant navigation response
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
             if (firebaseUser?.email) {
@@ -100,18 +100,21 @@ export function useDashboard() {
         }
     };
 
+    // Parallel feed fetch (does NOT block on userData loading)
     useEffect(() => {
-        if (!userData) return;
-
         const fetchPosts = async () => {
             if (loadingPosts || !hasMore) return;
 
             setLoadingPosts(true);
             try {
-                const res = await fetch(`/api/getallposts?page=${page}&limit=9`);
+                const exclude = user?.email ? `&excludeEmail=${encodeURIComponent(user.email)}` : "";
+                const res = await fetch(`/api/getallposts?page=${page}&limit=9${exclude}`);
                 const data = await res.json();
 
-                const filtered = data.posts.filter((p: Post) => p.author.email !== userData.email);
+                const userEmail = user?.email || userData?.email;
+                const filtered = userEmail 
+                    ? data.posts.filter((p: Post) => p.author?.email !== userEmail)
+                    : data.posts;
 
                 setPosts((prev) => (prev ? [...prev, ...filtered] : filtered));
                 setHasMore(data.hasMore);
@@ -123,7 +126,7 @@ export function useDashboard() {
         };
 
         fetchPosts();
-    }, [page, userData]);
+    }, [page, user?.email]);
 
     useEffect(() => {
         if (!user || !posts?.length) return;

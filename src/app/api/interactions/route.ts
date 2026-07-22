@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(cached);
     }
 
-    const user = await User.findOne({ email }).lean();
+    const user = await User.findOne({ email }).select("likes bookmarks").lean();
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
