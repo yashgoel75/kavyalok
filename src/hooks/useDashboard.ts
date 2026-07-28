@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getFirebaseToken } from "@/utils";
-import { useUser, User as ContextUser } from "@/context/UserContext";
+import { useUser, User } from "@/context/UserContext";
+
+export type { User };
 
 export interface Post {
     _id: string;
@@ -9,7 +11,7 @@ export interface Post {
     content: string;
     comments: [string];
     picture?: string;
-    author: ContextUser;
+    author: User;
     likes: number;
     color: string;
 }

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { getCommentColor } from "@/lib/utils";
+import { User } from "@/context/UserContext";
 
 interface Post {
   _id: string;
@@ -15,20 +16,6 @@ interface Post {
   likes: number;
   comments: [string];
   color: string;
-}
-
-interface User {
-  name: string;
-  username: string;
-  email: string;
-  bio?: string;
-  profilePicture?: string;
-  isVerified: boolean;
-  posts?: Post[];
-  snapchat: string;
-  instagram: string;
-  followers: string[];
-  following: string[];
 }
 
 interface PostCardProps {
