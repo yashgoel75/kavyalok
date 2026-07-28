@@ -46,6 +46,12 @@ export default function Footer() {
             </li>
             <li
               className="hover:cursor-pointer hover:text-gray-800 transition"
+              onClick={() => router.push("/careers")}
+            >
+              Careers
+            </li>
+            <li
+              className="hover:cursor-pointer hover:text-gray-800 transition"
               onClick={() => router.push("/contact")}
             >
               Contact Us
