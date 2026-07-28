@@ -3,17 +3,15 @@
 import GradientText from "../GradientText";
 import { Search, LogOut, Bell, User as UserIcon, Trophy } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import { getAuth, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getFirebaseToken } from "@/utils";
+import { useUser } from "@/context/UserContext";
 
 export default function Header() {
   const router = useRouter();
+  const { firebaseUser, userData, logout } = useUser();
 
-  const [user, setUser] = useState<User | null>(null);
-  const [displayName, setDisplayName] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -59,66 +57,14 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u?.email) {
-        fetchUserName(u.email);
-        fetchNotifications(u.email);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [fetchNotifications]);
-
-  const fetchUserName = async (email: string) => {
-    try {
-      const cachedData = localStorage.getItem("userData");
-      const cachedAt = localStorage.getItem("userDataCachedAt");
-      const oneHour = 60 * 60 * 1000;
-
-      const isCacheValid =
-        cachedData && cachedAt && Date.now() - Number(cachedAt) < oneHour;
-
-      if (isCacheValid) {
-        const parsed = JSON.parse(cachedData);
-        if (parsed?.name) {
-          setDisplayName(parsed.name);
-          return;
-        }
-      }
-
-      const token = await getFirebaseToken();
-      const response = await fetch(
-        `/api/user?email=${encodeURIComponent(email)}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || "Failed to fetch user");
-
-      if (data?.name) {
-        setDisplayName(data.name);
-        localStorage.setItem("userData", JSON.stringify({ name: data.name }));
-        localStorage.setItem("userDataCachedAt", Date.now().toString());
-      }
-    } catch (err) {
-      console.error("Header: Username fetch error:", err);
+    if (firebaseUser?.email) {
+      fetchNotifications(firebaseUser.email);
     }
-  };
+  }, [firebaseUser, fetchNotifications]);
 
   const handleLogout = async () => {
-    try {
-      await signOut(getAuth());
-      setUser(null);
-      localStorage.removeItem("userData");
-      localStorage.removeItem("userDataCachedAt");
-      router.replace("/");
-    } catch (err) {
-      console.error("Logout error:", err);
-    }
+    await logout();
+    router.replace("/");
   };
 
   useEffect(() => {
@@ -166,6 +112,8 @@ export default function Header() {
     </>
   );
 
+  const displayName = userData?.name || firebaseUser?.displayName || "User";
+
   return (
     <>
       <div className="top-0 w-full flex justify-between items-center px-5 mt-2 md:mt-0 z-20 bg-white">
@@ -199,7 +147,7 @@ export default function Header() {
           )}
 
           <div className="relative flex items-center gap-1">
-            {user && (
+            {firebaseUser && (
               <button
                 onClick={() => router.push("/account/notifications")}
                 className="user-icon-btn relative p-1 rounded-full hover:bg-gray-100 cursor-pointer transition active:scale-95"
@@ -212,29 +160,43 @@ export default function Header() {
               </button>
             )}
 
-            {user ? (
+            {firebaseUser ? (
               <>
                 <button
-                  className="user-icon-btn p-1 rounded-full hover:bg-gray-100 cursor-pointer transition active:scale-95"
+                  className="user-icon-btn p-1 rounded-full hover:bg-gray-100 cursor-pointer transition active:scale-95 flex items-center justify-center overflow-hidden"
                   onClick={() => setIsOpen((p) => !p)}
                 >
-                  <UserIcon size={25} strokeWidth={1.75} />
+                  {userData?.profilePicture ? (
+                    <img
+                      src={userData.profilePicture}
+                      alt={displayName}
+                      className="w-7 h-7 rounded-full object-cover"
+                    />
+                  ) : (
+                    <UserIcon size={25} strokeWidth={1.75} />
+                  )}
                 </button>
 
                 {isOpen && (
                   <div className="absolute right-0 mt-55 min-w-[160px] bg-white border border-gray-200 rounded-md shadow-lg z-50 menu-dropdown">
                     <div className="px-4 py-2 border-b border-gray-200">
-                      <p className="font-semibold">{displayName || "User"}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
+                      <p className="font-semibold">{displayName}</p>
+                      <p className="text-sm text-gray-500">{firebaseUser.email}</p>
                     </div>
                     <button
-                      onClick={() => {router.push("/account")}}
+                      onClick={() => {
+                        setIsOpen(false);
+                        router.push("/account");
+                      }}
                       className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
                     >
                       <UserIcon size={16} /> Account
                     </button>
                     <button
-                      onClick={() => {router.push("/account/events")}}
+                      onClick={() => {
+                        setIsOpen(false);
+                        router.push("/account/events");
+                      }}
                       className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
                     >
                       <Trophy size={16} /> Your Events

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import PageTransitionWrapper from "@/components/PageTransitionWrapper";
+import { UserProvider } from "@/context/UserContext";
 
 export const metadata: Metadata = {
   title: "Kavyalok",
@@ -18,11 +19,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <PageTransitionWrapper>
-          {children}
-          <Analytics />
-          <SpeedInsights />
-        </PageTransitionWrapper>
+        <UserProvider>
+          <PageTransitionWrapper>
+            {children}
+            <Analytics />
+            <SpeedInsights />
+          </PageTransitionWrapper>
+        </UserProvider>
       </body>
     </html>
   );

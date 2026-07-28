@@ -1,18 +1,15 @@
 "use client";
 
-import { Home, Bookmark, User, Compass, Settings, Plus } from "lucide-react";
+import { Home, Bookmark, Compass, GraduationCap, PlusSquare } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { useRouter, usePathname } from "next/navigation";
-import { GraduationCap } from "lucide-react";
-import { PlusSquare } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useUser } from "@/context/UserContext";
 
 export default function Navigation() {
   const [isMobile, setIsMobile] = useState(false);
   const [isFooterVisible, setIsFooterVisible] = useState(false);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const { firebaseUser } = useUser();
 
   const pathname = usePathname();
 
@@ -37,18 +34,12 @@ export default function Navigation() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => setFirebaseUser(user));
-    return () => unsub();
-  }, []);
-
   const navItems = [
     { icon: Home, url: "/dashboard", title: "Home" },
     { icon: Bookmark, url: "/bookmark", title: "Bookmarks" },
     { icon: PlusSquare, url: "/account/createPost", title: "New Post" },
     { icon: Compass, url: "/explore", title: "Explore" },
     { icon: GraduationCap, url: "/competitions", title: "Competitions" },
-    // { icon: Settings, url: "/settings", title: "Settings" },
   ];
 
   const isActive = (url: string) => pathname.startsWith(url);

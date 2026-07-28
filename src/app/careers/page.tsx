@@ -259,11 +259,7 @@ export default function CareersPage() {
 
           {/* COMING SOON HERO BANNER WITH WORKING CONTACT WAITLIST API */}
           <div className="mt-10 max-w-2xl mx-auto bg-gradient-to-b from-neutral-50 to-white border border-neutral-200 rounded-2xl p-6 sm:p-8 shadow-xs">
-            <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-[#9a6f0b] font-semibold text-xs uppercase tracking-wider mb-3">
-              <Clock size={15} />
-              <span>Hiring Portal Coming Soon</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-            </div>
+            
             
             <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 mb-2">
               Get Notified When Openings Launch

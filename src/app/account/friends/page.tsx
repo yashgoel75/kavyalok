@@ -1,16 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Header from "@/components/header/page";
 import Footer from "@/components/footer/page";
 import Navigation from "@/components/navigation/page";
 import Image from "next/image";
 import { getFirebaseToken } from "@/utils";
+import { useUser } from "@/context/UserContext";
 
-interface User {
+interface UserData {
   name: string;
   username: string;
   profilePicture?: string;
@@ -27,27 +26,20 @@ interface Friend {
 
 export default function FriendsPage() {
   const router = useRouter();
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [userData, setUserData] = useState<User | null>(null);
+  const { firebaseUser, loading: authLoading } = useUser();
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [followersDetails, setFollowersDetails] = useState<Friend[]>([]);
   const [followingDetails, setFollowingDetails] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"followers" | "following">(
-    "followers"
-  );
+  const [activeTab, setActiveTab] = useState<"followers" | "following">("followers");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user?.email) {
-        setFirebaseUser(user);
-        fetchUserData(user.email);
-      } else {
-        router.replace("/");
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
+    if (!authLoading && !firebaseUser) {
+      router.replace("/");
+    } else if (firebaseUser?.email) {
+      fetchUserData(firebaseUser.email);
+    }
+  }, [authLoading, firebaseUser, router]);
 
   const fetchUserData = async (email: string) => {
     try {
@@ -89,14 +81,14 @@ export default function FriendsPage() {
     }
 
     try {
-            const token = await getFirebaseToken();
+      const token = await getFirebaseToken();
 
       const res = await fetch("/api/getbatchfriends", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-         },
+        },
         body: JSON.stringify({ emails }),
       });
 
@@ -122,8 +114,8 @@ export default function FriendsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-         },
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           currentUserEmail: firebaseUser.email,
           targetEmail: friendEmail,
@@ -132,9 +124,8 @@ export default function FriendsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        const userEmail = firebaseUser?.email;
-        if (userEmail) {
-          fetchUserData(userEmail);
+        if (firebaseUser?.email) {
+          fetchUserData(firebaseUser.email);
         }
       } else {
         alert(data.error || "Failed to follow back");
@@ -144,38 +135,37 @@ export default function FriendsPage() {
     }
   };
 
-  if (loading) {
-  return (
-    <>
-      <Header />
-      <main className="max-w-4xl mx-auto px-4 py-10 min-h-[80vh]">
-        <h2 className="text-3xl font-bold text-gray-800 mb-6">Friends</h2>
+  if (loading || authLoading) {
+    return (
+      <>
+        <Header />
+        <main className="max-w-4xl mx-auto px-4 py-10 min-h-[80vh]">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Friends</h2>
 
-        <div className="space-y-3 mt-6">
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between p-3 bg-white shadow-sm rounded-lg animate-pulse"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gray-300"></div>
+          <div className="space-y-3 mt-6">
+            {[...Array(8)].map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-3 bg-white shadow-xs rounded-lg animate-pulse"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-gray-300"></div>
 
-                <div className="space-y-2">
-                  <div className="h-4 w-32 bg-gray-300 rounded"></div>
-                  <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 bg-gray-300 rounded"></div>
+                    <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                  </div>
                 </div>
+
+                <div className="h-8 w-24 bg-gray-200 rounded-md"></div>
               </div>
-
-              <div className="h-8 w-24 bg-gray-200 rounded-md"></div>
-            </div>
-          ))}
-        </div>
-      </main>
-      <Footer />
-    </>
-  );
-}
-
+            ))}
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   if (!userData) {
     return (
@@ -223,7 +213,7 @@ export default function FriendsPage() {
             className={`px-3 py-1 rounded-md text-sm ${
               isFollowing
                 ? "bg-gray-200 text-gray-700 cursor-default"
-                : "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
             }`}
             disabled={isFollowing}
             onClick={() => !isFollowing && handleFollowBack(friend.email)}

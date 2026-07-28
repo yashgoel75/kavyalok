@@ -159,6 +159,8 @@ const UserSchema = new Schema({
 
 UserSchema.index({ username: 1, email: 1 });
 
+export type IUser = mongoose.InferSchemaType<typeof UserSchema>;
+
 export const superCompetition = mongoose.models.superCompetition || mongoose.model("superCompetition", superCompetitionSchema)
 export const Competition = mongoose.models.Competition || mongoose.model("Competition", CompetitionSchema)
 export const CompetitionApplication = mongoose.models.CompetitionApplication || mongoose.model("CompetitionApplication", CompetitionApplicationSchema)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../db/schema";
+import { User, IUser } from "../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 export async function GET(req: NextRequest) {
@@ -25,11 +25,19 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const existingUser = await User.findOne({ email });
-        const name = existingUser.name;
+        const existingUser = await User.findOne({ email })
+            .select("-notifications -__v")
+            .lean<IUser>();
+
+        if (!existingUser) {
+            return NextResponse.json(
+                { message: "User not found" },
+                { status: 404 }
+            );
+        }
 
         return NextResponse.json(
-            { name: name, user: existingUser },
+            { name: existingUser.name, user: existingUser },
             { status: 200 }
         );
     } catch (error: unknown) {
@@ -60,7 +68,7 @@ export async function PATCH(req: NextRequest) {
         { email: email },
         updates,
         { new: true }
-    );
+    ).select("-notifications -__v").lean<IUser>();
 
     return NextResponse.json({ success: true, user: updatedUser });
 }

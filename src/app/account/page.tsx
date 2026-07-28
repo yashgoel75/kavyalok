@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import Header from "@/components/header/page";
 import Footer from "@/components/footer/page";
 import Navigation from "@/components/navigation/page";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useUser } from "@/context/UserContext";
 import {
   Pin,
   PinOff,
@@ -79,10 +78,10 @@ export default function Account() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [userData, setUserData] = useState<User | null>(null);
-  const [formData, setFormData] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { firebaseUser, userData: globalUserData, loading: globalLoading, refreshUserData } = useUser();
+  const [userData, setUserData] = useState<User | null>(globalUserData as User | null);
+  const [formData, setFormData] = useState<User | null>(globalUserData as User | null);
+  const [loading, setLoading] = useState(globalLoading);
 
   // Modals & Tabs
   const [activeTab, setActiveTab] = useState<"works" | "pinned" | "settings">("works");
@@ -103,38 +102,18 @@ export default function Account() {
   const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user?.email) {
-        setFirebaseUser(user);
+    if (!globalLoading && !firebaseUser) {
+      router.replace("/");
+    }
+  }, [globalLoading, firebaseUser, router]);
 
-        const cached = localStorage.getItem("userData");
-        const cachedAt = localStorage.getItem("userDataCachedAt");
-        const oneHour = 60 * 60 * 1000;
+  useEffect(() => {
+    if (firebaseUser?.email) {
+      fetchUserPosts(firebaseUser.email);
+    }
+  }, [firebaseUser]);
 
-        const isCacheValid = cached && cachedAt && Date.now() - Number(cachedAt) < oneHour;
-
-        if (isCacheValid) {
-          try {
-            const parsed = JSON.parse(cached);
-            setUserData(parsed);
-            setFormData(parsed);
-            setLoading(false);
-          } catch (error) {
-            console.error("Cache parse error:", error);
-            fetchUserData(user.email).finally(() => setLoading(false));
-          }
-        } else {
-          fetchUserData(user.email).finally(() => setLoading(false));
-        }
-      } else {
-        router.replace("/");
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  const fetchUserData = async (email: string): Promise<User | null> => {
+  const fetchUserPosts = async (email: string) => {
     try {
       const token = await getFirebaseToken();
       const res = await fetch(`/api/user/posts?email=${encodeURIComponent(email)}`, {
@@ -147,12 +126,10 @@ export default function Account() {
 
       setUserData(data.user);
       setFormData(data.user);
-      localStorage.setItem("userData", JSON.stringify(data.user));
-      localStorage.setItem("userDataCachedAt", Date.now().toString());
-      return data.user;
     } catch (err) {
       console.error(err);
-      return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -206,8 +183,7 @@ export default function Account() {
       }));
 
       setIsEditModalOpen(false);
-      localStorage.setItem("userData", JSON.stringify(data.user));
-      localStorage.setItem("userDataCachedAt", Date.now().toString());
+      await refreshUserData();
     } catch (err) {
       console.error("Failed to update profile", err);
     } finally {

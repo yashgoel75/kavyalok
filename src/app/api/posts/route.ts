@@ -18,8 +18,7 @@ export async function POST(req: Request) {
     const posts = await Post.find({ _id: { $in: ids } })
       .populate({
         path: "author",
-        select:
-          "-posts -bio -bookmarks -instagram -snapchat -followers -following -likes -notifications -createdAt -updatedAt -__v",
+        select: "name username profilePicture isVerified email",
       })
       .select({
         title: 1,

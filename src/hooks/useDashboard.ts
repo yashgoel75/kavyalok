@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { getAuth, signOut, onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { getFirebaseToken } from "@/utils";
+import { useUser, User as ContextUser } from "@/context/UserContext";
 
 export interface Post {
     _id: string;
@@ -10,32 +9,16 @@ export interface Post {
     content: string;
     comments: [string];
     picture?: string;
-    author: User;
+    author: ContextUser;
     likes: number;
     color: string;
 }
 
-export interface User {
-    name: string;
-    username: string;
-    email: string;
-    bio?: string;
-    profilePicture?: string;
-    posts?: Post[];
-    snapchat: string;
-    defaultPostColor: string;
-    instagram: string;
-    isVerified: boolean;
-    followers: string[];
-    following: string[];
-}
-
 export function useDashboard() {
     const router = useRouter();
-    const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [userData, setUserData] = useState<User | null>(null);
+    const { firebaseUser: user, userData, loading, logout: handleLogout } = useUser();
+
     const [posts, setPosts] = useState<Post[] | null>(null);
-    const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [loadingPosts, setLoadingPosts] = useState(false);
@@ -45,60 +28,12 @@ export function useDashboard() {
     const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
     const fetchedInteractionIdsRef = useRef<Set<string>>(new Set());
 
-    // In-memory cache for instant navigation response
+    // Redirect unauthenticated user to home
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-            if (firebaseUser?.email) {
-                setUser(firebaseUser);
-
-                const cached = localStorage.getItem("userData");
-                const cachedAt = localStorage.getItem("userDataCachedAt");
-                const oneHour = 60 * 60 * 1000;
-                const isCacheValid = cached && cachedAt && Date.now() - Number(cachedAt) < oneHour;
-
-                if (isCacheValid) {
-                    try {
-                        const parsed = JSON.parse(cached);
-                        setUserData(parsed);
-                        setLoading(false);
-                    } catch (error) {
-                        console.error("Cache parse error:", error);
-                        fetchUserData(firebaseUser.email).then(updateCache).finally(() => setLoading(false));
-                    }
-                } else {
-                    fetchUserData(firebaseUser.email).then(updateCache).finally(() => setLoading(false));
-                }
-            } else {
-                router.replace("/");
-            }
-        });
-
-        return () => unsubscribe();
-    }, [router]);
-
-    const updateCache = (data: User | null) => {
-        if (data) {
-            setUserData(data);
-            localStorage.setItem("userData", JSON.stringify(data));
-            localStorage.setItem("userDataCachedAt", Date.now().toString());
+        if (!loading && !user) {
+            router.replace("/");
         }
-    };
-
-    const fetchUserData = async (email: string): Promise<User | null> => {
-        try {
-            const token = await getFirebaseToken();
-            const res = await fetch(`/api/user/posts?email=${encodeURIComponent(email)}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            const data = await res.json();
-            return res.ok ? data.user : null;
-        } catch (err) {
-            console.error(err);
-            return null;
-        }
-    };
+    }, [loading, user, router]);
 
     // Parallel feed fetch (does NOT block on userData loading)
     useEffect(() => {
@@ -178,18 +113,6 @@ export function useDashboard() {
 
         fetchInteractions();
     }, [user, posts, page]);
-
-    const handleLogout = async () => {
-        try {
-            await signOut(getAuth());
-            setUser(null);
-            localStorage.removeItem("userData");
-            localStorage.removeItem("userDataCachedAt");
-            router.replace("/");
-        } catch (err) {
-            console.error("Logout error:", err);
-        }
-    };
 
     const toggleLike = async (postId: string) => {
         if (!user) return;
