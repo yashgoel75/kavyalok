@@ -150,7 +150,6 @@ export default function PostCardModal({
 
   const cardTextColor = getTextColor(selectedTheme.value);
   const isDarkText = cardTextColor === "#000000";
-  const qrFgColor = isDarkText ? "000000" : "ffffff";
 
   const postUrl =
     typeof window !== "undefined"
@@ -158,7 +157,7 @@ export default function PostCardModal({
       : "";
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
     postUrl
-  )}&color=${qrFgColor}&bgcolor=${selectedTheme.value.replace("#", "")}`;
+  )}&color=000000&bgcolor=ffffff`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(postUrl);

@@ -94,7 +94,7 @@ export default function ProfileCardModal({
   if (!isOpen) return null;
 
   const profileUrl = typeof window !== "undefined" ? `${window.location.origin}/user/${user.username}` : "";
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(profileUrl)}&color=ffffff&bgcolor=${selectedTheme.value.replace("#", "")}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(profileUrl)}&color=000000&bgcolor=ffffff`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(profileUrl);
