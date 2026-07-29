@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Check, MessageCircle, Send } from "lucide-react";
+import { Check, MessageCircle, Send, Repeat2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
@@ -16,6 +16,11 @@ interface Post {
   likes: number;
   comments: [string];
   color: string;
+  repostCount?: number;
+  repostedBy?: string[];
+  isRepost?: boolean;
+  originalPost?: string;
+  repostedByAuthor?: User;
 }
 
 interface PostCardProps {
@@ -24,9 +29,11 @@ interface PostCardProps {
   userData: User | null;
   likedPosts: Record<string, boolean>;
   bookmarkedPosts: Record<string, boolean>;
+  repostedPosts?: Record<string, boolean>;
   defaultPostColor: string;
   handleLike: (id: string) => void;
   handleBookmark: (id: string) => void;
+  handleRepost?: (id: string) => void;
   getTextColor: (color: string) => string;
   getIconColor: (color: string, isLiked: boolean) => string;
   getCommentColor: (color: string) => string;
@@ -40,9 +47,11 @@ export default React.memo(function PostCard({
   userData,
   likedPosts,
   bookmarkedPosts,
+  repostedPosts = {},
   defaultPostColor,
   handleLike,
   handleBookmark,
+  handleRepost,
   getTextColor,
   getIconColor,
   getInitials,
@@ -52,10 +61,9 @@ export default React.memo(function PostCard({
   const readingTime = Math.ceil(post.content.split(" ").length / 200);
 
   const activeColor =
-  defaultPostColor && defaultPostColor !== "null"
-    ? defaultPostColor
-    : post.color || "#ffffff";
-
+    defaultPostColor && defaultPostColor !== "null"
+      ? defaultPostColor
+      : post.color || "#ffffff";
 
   const [copied, setCopied] = useState(false);
 
@@ -80,6 +88,8 @@ export default React.memo(function PostCard({
     setShowShareOptions(false);
   };
 
+  const isRepostedByUser = !!repostedPosts[post._id];
+
   return (
     <div
       key={post._id}
@@ -92,6 +102,14 @@ export default React.memo(function PostCard({
       }}
       className="bg-white relative p-5 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col"
     >
+      {/* Repost Header Indicator */}
+      {post.isRepost && (
+        <div className="flex items-center gap-1.5 text-xs font-extrabold opacity-75 mb-3 border-b border-black/10 pb-2">
+          <Repeat2 size={13} className="text-emerald-600" />
+          <span>Reposted by @{post.repostedByAuthor?.username || "writer"}</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <div
           className="flex items-center gap-3 cursor-pointer"
@@ -174,15 +192,13 @@ export default React.memo(function PostCard({
         }}
       >
         <div className="flex gap-3 items-center">
+          {/* Like Button */}
           <button
             onClick={() => handleLike(post._id)}
             disabled={!firebaseUser}
-            className="flex items-center gap-2 transition-transform hover:scale-110 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 transition-transform hover:scale-110 disabled:cursor-not-allowed cursor-pointer"
             style={{
-              color: getIconColor(
-                activeColor,
-                likedPosts[post._id]
-              ),
+              color: getIconColor(activeColor, likedPosts[post._id]),
             }}
           >
             <svg
@@ -193,10 +209,7 @@ export default React.memo(function PostCard({
                   ? getIconColor(activeColor, true)
                   : "none"
               }
-              stroke={getIconColor(
-                activeColor,
-                likedPosts[post._id]
-              )}
+              stroke={getIconColor(activeColor, likedPosts[post._id])}
               strokeWidth="1.5"
               className="h-5 w-5 transition-all duration-200"
             >
@@ -206,24 +219,48 @@ export default React.memo(function PostCard({
                 clipRule="evenodd"
               />
             </svg>
-            <span className="text-sm font-semibold">{post.likes}&nbsp;</span>
-            <MessageCircle
-              color={getCommentColor(activeColor)}
-              size={18}
-              strokeWidth="1.5"
-            ></MessageCircle>
-            <span
-              style={{ color: getCommentColor(activeColor) }}
-              className="text-sm font-semibold"
-            >
-              {post.comments.length}
-            </span>
+            <span className="text-xs font-bold">{post.likes}</span>
           </button>
 
+          {/* Comment Count */}
+          <div className="flex items-center gap-1">
+            <MessageCircle
+              color={getCommentColor(activeColor)}
+              size={17}
+              strokeWidth="1.5"
+            />
+            <span
+              style={{ color: getCommentColor(activeColor) }}
+              className="text-xs font-bold"
+            >
+              {post.comments?.length || 0}
+            </span>
+          </div>
+
+          {/* Repost Button */}
+          {handleRepost && (
+            <button
+              onClick={() => handleRepost(post._id)}
+              disabled={!firebaseUser}
+              className={`flex items-center gap-1 transition-transform hover:scale-110 disabled:cursor-not-allowed cursor-pointer ${
+                isRepostedByUser ? "text-emerald-600 font-extrabold" : ""
+              }`}
+              title={isRepostedByUser ? "Undo Repost" : "Repost"}
+            >
+              <Repeat2
+                size={17}
+                strokeWidth={isRepostedByUser ? 2.5 : 1.5}
+                className={isRepostedByUser ? "text-emerald-600" : ""}
+              />
+              <span className="text-xs font-bold">{post.repostCount || 0}</span>
+            </button>
+          )}
+
+          {/* Bookmark Button */}
           <button
             onClick={() => handleBookmark(post._id)}
             disabled={!firebaseUser}
-            className={`flex items-center gap-2 hover:scale-110 transition-transform disabled:cursor-not-allowed ${
+            className={`flex items-center hover:scale-110 transition-transform disabled:cursor-not-allowed cursor-pointer ${
               bookmarkedPosts[post._id] ? "text-yellow-500" : ""
             }`}
           >
@@ -244,7 +281,7 @@ export default React.memo(function PostCard({
           </button>
         </div>
 
-        <div className="flex items-centerrelative">
+        <div className="flex items-center relative">
           <button
             onClick={() => setShowShareOptions(!showShareOptions)}
             className="hover:scale-110 transition-transform cursor-pointer"

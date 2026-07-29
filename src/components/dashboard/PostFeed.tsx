@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { getTextColor, getIconColor, getCommentColor } from "@/lib/utils";
 import { User as FirebaseUser } from "firebase/auth";
 import Link from "next/link";
-import { Loader2, Plus, Feather } from "lucide-react";
+import { Loader2, Feather } from "lucide-react";
 import CreatePostModal from "@/components/post/CreatePostModal";
 
 interface FeedProps {

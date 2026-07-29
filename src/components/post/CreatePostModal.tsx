@@ -48,6 +48,17 @@ export default function CreatePostModal({
     }
   }, [allTags]);
 
+  // Global ESC key listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (isOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const validateAspectRatio = (file: File): Promise<boolean> => {

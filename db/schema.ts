@@ -108,11 +108,18 @@ const PostSchema = new Schema({
     author: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     tags: [{ type: String, index: true }],
     likes: { type: Number, default: 0 },
+    repostCount: { type: Number, default: 0 },
+    repostedBy: [{ type: String }],
+    originalPost: { type: Schema.Types.ObjectId, ref: "Post", default: null, index: true },
+    repostedByAuthor: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    isRepost: { type: Boolean, default: false, index: true },
     comments: [{ type: Schema.Types.ObjectId, ref: "Comment" }],
     color: { type: String, required: false },
 }, { timestamps: true });
 
 PostSchema.index({ title: "text", content: "text", tags: "text" });
+PostSchema.index({ createdAt: -1 });
+PostSchema.index({ author: 1, createdAt: -1 });
 
 const NotificationSchema = new Schema({
     type: { type: String, required: true, index: true },
@@ -130,6 +137,7 @@ const UserSchema = new Schema({
     email: { type: String, required: true, unique: true, index: true },
     posts: [String],
     pinnedPosts: [String],
+    reposts: [String],
     bio: String,
     penName: String,
     favoriteGenre: String,

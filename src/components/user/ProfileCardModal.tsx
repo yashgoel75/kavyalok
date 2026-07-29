@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
 import { X, Copy, Check, Download, Loader2 } from "lucide-react";
 import { toPng } from "html-to-image";
 
@@ -37,6 +36,60 @@ export default function ProfileCardModal({
   const [selectedTheme, setSelectedTheme] = useState(COLOR_PRESETS[0]);
   const [copied, setCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [dataUrlAvatar, setDataUrlAvatar] = useState<string | null>(null);
+
+  // Global ESC key listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (isOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
+  // Convert profile avatar to base64 Data URL so html-to-image includes it 100% cleanly in PNG download
+  useEffect(() => {
+  let mounted = true;
+
+  async function loadAvatar() {
+    if (!user.profilePicture || !isOpen) {
+      setDataUrlAvatar(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(user.profilePicture, {
+        mode: "cors",
+        cache: "no-cache",
+      });
+      console.log(user.profilePicture);
+      const blob = await res.blob();
+
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        if (mounted) {
+          setDataUrlAvatar(reader.result as string);
+        }
+      };
+
+      reader.readAsDataURL(blob);
+    } catch {
+      if (mounted) {
+        // fallback
+        setDataUrlAvatar(user.profilePicture);
+      }
+    }
+  }
+
+  loadAvatar();
+
+  return () => {
+    mounted = false;
+  };
+}, [user.profilePicture, isOpen]);
 
   if (!isOpen) return null;
 
@@ -50,21 +103,40 @@ export default function ProfileCardModal({
   };
 
   const handleDownloadImage = async () => {
-    if (!cardRef.current) return;
-    setIsDownloading(true);
-    try {
-      const dataUrl = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2 });
-      const link = document.createElement("a");
-      link.download = `${user.username}-kavyalok-card.png`;
-      link.href = dataUrl;
-      link.click();
-    } catch (err) {
-      console.error("Failed to generate profile card image", err);
-      alert("Failed to download image. Please try again.");
-    } finally {
-      setIsDownloading(false);
-    }
-  };
+  if (!cardRef.current) return;
+
+  setIsDownloading(true);
+
+  try {
+    // Wait for all images inside the card
+    const images = Array.from(cardRef.current.querySelectorAll("img"));
+
+    await Promise.all(
+      images.map((img) => {
+        if (img.complete) return Promise.resolve();
+
+        return new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        });
+      })
+    );
+
+    const dataUrl = await toPng(cardRef.current, {
+      cacheBust: true,
+      pixelRatio: 3,
+    });
+
+    const link = document.createElement("a");
+    link.download = `${user.username}-kavyalok-card.png`;
+    link.href = dataUrl;
+    link.click();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setIsDownloading(false);
+  }
+};
 
   const cardBg = selectedTheme.value;
 
@@ -100,20 +172,22 @@ export default function ProfileCardModal({
               className="relative rounded-3xl p-6 sm:p-8 text-white shadow-2xl border border-white/10 overflow-hidden space-y-6 transition-colors duration-300"
             >
               {/* Brand Logo in Kavyalok Custom Font */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-start">
                 <span className="custom-class text-3xl font-normal tracking-wide text-white">
                   Kavyalok
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest opacity-60 bg-white/10 px-3 py-1 rounded-full">
-                  CREATIVE HUB
                 </span>
               </div>
 
               {/* User Info & Avatar */}
               <div className="flex items-center gap-4 pt-2">
-                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-white/30 shadow-lg flex-shrink-0">
-                  {user.profilePicture ? (
-                    <Image src={user.profilePicture} alt={user.name} fill className="object-cover" />
+                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-white/30 shadow-lg flex-shrink-0 bg-white/10">
+                  {dataUrlAvatar || user.profilePicture ? (
+                    <img
+                      src={dataUrlAvatar || user.profilePicture}
+                      alt={user.name}
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-white/20 text-2xl font-extrabold text-white">
                       {user.name.charAt(0).toUpperCase()}
@@ -144,25 +218,25 @@ export default function ProfileCardModal({
                 </p>
               )}
 
-              {/* QR Code Container */}
+              {/* QR Code Container with Extra Padding */}
               <div className="pt-2 flex items-center justify-between border-t border-white/10">
                 <div>
                   <p className="text-[10px] uppercase font-extrabold tracking-wider opacity-70">Scan Profile</p>
                   <p className="text-xs font-bold mt-0.5">kavyalok.in/user/{user.username}</p>
                 </div>
-                <div className="p-1.5 bg-white rounded-2xl shadow-md border border-white/20 flex-shrink-0">
+                <div className="p-2 m-2 sm:p-2 bg-white rounded-2xl shadow-md border border-white/20 flex-shrink-0">
                   <img
                     src={qrCodeUrl}
                     alt="Profile QR Code"
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl"
+                    className="w-16 h-16 sm:w-24 sm:h-24 rounded p-1"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Theme Picker */}
+            {/* Theme Picker - Centered Buttons */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 text-center">
                 Card Theme Colors
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -171,13 +245,13 @@ export default function ProfileCardModal({
                     key={preset.name}
                     onClick={() => setSelectedTheme(preset)}
                     style={{ backgroundColor: preset.value }}
-                    className={`p-2.5 rounded-2xl text-xs font-bold text-white border transition-all flex items-center justify-between cursor-pointer ${
+                    className={`py-2.5 px-2 rounded-2xl text-xs font-bold text-white border transition-all flex items-center justify-center text-center gap-1.5 cursor-pointer ${
                       selectedTheme.name === preset.name
-                        ? "border-slate-900 ring-2 ring-slate-900/30 scale-[1.02]"
+                        ? "border-white ring-2 ring-slate-900/40 scale-[1.02]"
                         : "border-transparent opacity-90 hover:opacity-100"
                     }`}
                   >
-                    <span className="truncate">{preset.name.split(" ")[0]}</span>
+                    <span className="truncate text-center">{preset.name.split(" ")[0]}</span>
                     {selectedTheme.name === preset.name && <Check size={12} />}
                   </button>
                 ))}
