@@ -23,9 +23,11 @@ import {
   Loader2,
   Tag,
   Eye,
+  Copy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseToken } from "@/utils";
+import PostCardModal from "@/components/post/PostCardModal";
 
 interface Author {
   _id: string;
@@ -80,6 +82,7 @@ export default function PostPage() {
   const [replyText, setReplyText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isPostCardOpen, setIsPostCardOpen] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => setFirebaseUser(user));
@@ -553,13 +556,23 @@ export default function PostPage() {
                   </button>
                 </div>
 
-                <button
-                  onClick={copyLink}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-black/10 hover:bg-black/20 text-xs font-extrabold transition-all cursor-pointer"
-                >
-                  <Share2 size={15} />
-                  <span>{copiedLink ? "Link Copied!" : "Share Link"}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsPostCardOpen(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-slate-900 text-white text-xs font-extrabold transition-all active:scale-95 cursor-pointer shadow-md hover:bg-slate-800"
+                  >
+                    <Share2 size={15} />
+                    <span>Share Card</span>
+                  </button>
+
+                  <button
+                    onClick={copyLink}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-black/10 hover:bg-black/20 text-xs font-extrabold transition-all cursor-pointer"
+                  >
+                    <Copy size={15} />
+                    <span>{copiedLink ? "Copied!" : "Link"}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -689,6 +702,28 @@ export default function PostPage() {
           </div>
         </div>
       </main>
+
+      {post && (
+        <PostCardModal
+          isOpen={isPostCardOpen}
+          onClose={() => setIsPostCardOpen(false)}
+          post={{
+            id: post._id,
+            title: post.title,
+            content: post.content,
+            picture: post.picture,
+            likes: post.likes,
+            color: post.color,
+            createdAt: post.createdAt,
+            author: {
+              name: post.author?.name || "Writer",
+              username: post.author?.username || "writer",
+              profilePicture: post.author?.profilePicture,
+              isVerified: post.author?.isVerified,
+            },
+          }}
+        />
+      )}
 
       <Navigation />
       <Footer />

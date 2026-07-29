@@ -37,6 +37,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseToken } from "@/utils";
 import FriendsModal from "@/components/user/FriendsModal";
 import ProfileCardModal from "@/components/user/ProfileCardModal";
+import PostCardModal from "@/components/post/PostCardModal";
 
 interface PrivacySettings {
   isPrivate?: boolean;
@@ -99,6 +100,7 @@ export default function UserProfile() {
     tab: "followers" | "following";
   }>({ isOpen: false, tab: "followers" });
   const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
+  const [selectedSharePost, setSelectedSharePost] = useState<any>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -479,12 +481,12 @@ export default function UserProfile() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCopyPostLink(post._id);
+                            setSelectedSharePost(post);
                           }}
                           className="px-4 py-2 rounded-xl bg-black/10 hover:bg-black/20 transition-colors flex items-center gap-1.5"
                         >
                           <Share2 size={15} />
-                          <span>{copiedPostId === post._id ? "Copied" : "Share"}</span>
+                          <span>Share Card</span>
                         </button>
                       </div>
                     </motion.div>
@@ -579,6 +581,30 @@ export default function UserProfile() {
           isVerified: userData.isVerified,
         }}
       />
+
+      {/* Visual Post Card Modal */}
+      {selectedSharePost && (
+        <PostCardModal
+          isOpen={!!selectedSharePost}
+          onClose={() => setSelectedSharePost(null)}
+          post={{
+            id: selectedSharePost._id,
+            title: selectedSharePost.title,
+            content: selectedSharePost.content,
+            picture: selectedSharePost.picture,
+            likes: selectedSharePost.likes,
+            color: selectedSharePost.color,
+            createdAt: selectedSharePost.createdAt,
+            author: {
+              name: userData.name,
+              username: userData.username,
+              profilePicture: userData.profilePicture,
+              isVerified: userData.isVerified,
+              penName: userData.penName,
+            },
+          }}
+        />
+      )}
 
       {/* Social Links Modal */}
       <AnimatePresence>
