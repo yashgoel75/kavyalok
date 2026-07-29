@@ -31,6 +31,7 @@ import {
   Grid,
   Camera,
   QrCode,
+  Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseToken } from "@/utils";
@@ -493,7 +494,7 @@ export default function UserProfile() {
             ) : (
               <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex flex-col items-center justify-center">
                 <div className="w-20 h-20 rounded-full border-2 border-slate-900 flex items-center justify-center mb-5 text-slate-900">
-                  <Camera size={36} strokeWidth={1.5} />
+                  <Pencil size={36} strokeWidth={1.5} />
                 </div>
                 <h3 className="text-2xl font-extrabold text-slate-900 mb-2">No Published Posts</h3>
                 <p className="text-slate-500 text-sm max-w-sm font-medium">This writer has not published any posts yet.</p>

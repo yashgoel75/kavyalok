@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../../db/schema";
+import { User, Follow, Notification, Interaction } from "../../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 export async function POST(req: NextRequest) {
@@ -40,6 +40,14 @@ export async function POST(req: NextRequest) {
         }
 
         if (action === "follow") {
+            // New Scalable Follow Collection
+            await Follow.updateOne(
+                { follower: currentUser._id, following: targetUser._id },
+                { $setOnInsert: { follower: currentUser._id, following: targetUser._id } },
+                { upsert: true }
+            );
+
+            // Backward Compatibility Dual Write
             await User.updateOne(
                 { email: currentUserEmail },
                 { $addToSet: { following: targetEmail } }
@@ -50,8 +58,17 @@ export async function POST(req: NextRequest) {
                 { $addToSet: { followers: currentUserEmail } }
             );
 
+            // Standalone Notification Collection
+            await Notification.create({
+                recipient: targetUser._id,
+                sender: currentUser._id,
+                type: "new_follower",
+                fromEmail: currentUserEmail,
+                read: false,
+            });
+
+            // Dual Write Embedded Notification
             const notification = {
-                id: new Date().getTime().toString(),
                 type: "new_follower",
                 fromEmail: currentUserEmail,
                 read: false,
@@ -63,11 +80,24 @@ export async function POST(req: NextRequest) {
                 { $push: { notifications: notification } }
             );
 
+            // Track Interaction for Recommendations
+            await Interaction.create({
+                user: currentUser._id,
+                action: "follow",
+            });
+
             return NextResponse.json(
                 { message: "User followed successfully" },
                 { status: 200 }
             );
         } else if (action === "unfollow") {
+            // Remove from Follow collection
+            await Follow.deleteOne({
+                follower: currentUser._id,
+                following: targetUser._id,
+            });
+
+            // Backward Compatibility Dual Pull
             await User.updateOne(
                 { email: currentUserEmail },
                 { $pull: { following: targetEmail } }

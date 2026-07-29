@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../db/schema";
+import { User, Follow } from "../../../../db/schema";
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const user = await User.findOne(
+    const rawUser = await User.findOne(
       { email },
       {
         name: 1,
@@ -28,14 +28,36 @@ export async function GET(req: NextRequest) {
       }
     ).lean();
 
-    if (!user) {
+    if (!rawUser) {
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ user }, { status: 200 });
+    const user = (Array.isArray(rawUser) ? rawUser[0] : rawUser) as any;
+
+    // Fetch from Follow collection
+    const followsTargetAsFollowing = await Follow.find({ follower: user._id }).populate("following", "email").lean();
+    const followsTargetAsFollower = await Follow.find({ following: user._id }).populate("follower", "email").lean();
+
+    const followingEmailsFromColl = followsTargetAsFollowing
+      .map((f: any) => f.following?.email)
+      .filter(Boolean);
+    const followerEmailsFromColl = followsTargetAsFollower
+      .map((f: any) => f.follower?.email)
+      .filter(Boolean);
+
+    const mergedFollowing = Array.from(new Set([...(user.following || []), ...followingEmailsFromColl]));
+    const mergedFollowers = Array.from(new Set([...(user.followers || []), ...followerEmailsFromColl]));
+
+    return NextResponse.json({
+      user: {
+        ...user,
+        followers: mergedFollowers,
+        following: mergedFollowing,
+      },
+    }, { status: 200 });
 
   } catch (error) {
     console.error("Error fetching user basic info:", error);

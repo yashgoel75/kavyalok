@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { Post, Comment, User } from "../../../../../db/schema";
+import { Post, Comment, User, Interaction } from "../../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 export async function POST(req: NextRequest) {
@@ -44,8 +44,16 @@ export async function POST(req: NextRequest) {
 
     await newComment.save();
 
+    // Dual Push to post.comments for backward compatibility
     post.comments.push(newComment._id);
     await post.save();
+
+    // Track Interaction for Recommendations
+    await Interaction.create({
+      user: user._id,
+      post: postId,
+      action: "comment",
+    });
 
     return NextResponse.json(
       { message: "Comment posted successfully", comment: newComment },

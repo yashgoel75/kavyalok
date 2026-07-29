@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../../db/schema";
+import { User, Bookmark, Interaction } from "../../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 export async function POST(req: NextRequest) {
@@ -30,12 +30,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const hasBookmarked = user.bookmarks?.includes(postId);
+    const existingBookmark = await Bookmark.findOne({ user: user._id, post: postId });
+    const hasBookmarked = !!existingBookmark || user.bookmarks?.includes(postId);
 
     if (hasBookmarked) {
+      await Bookmark.deleteOne({ user: user._id, post: postId });
       await User.updateOne({ email }, { $pull: { bookmarks: postId } });
     } else {
+      await Bookmark.updateOne(
+        { user: user._id, post: postId },
+        { $setOnInsert: { user: user._id, post: postId } },
+        { upsert: true }
+      );
       await User.updateOne({ email }, { $addToSet: { bookmarks: postId } });
+
+      await Interaction.create({
+        user: user._id,
+        post: postId,
+        action: "bookmark",
+      });
     }
 
     return NextResponse.json(

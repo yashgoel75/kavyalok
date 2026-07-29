@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { User, Post } from "../../../../../db/schema";
+import { User, Post, Repost, Interaction } from "../../../../../db/schema";
 import { register } from "@/instrumentation";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
@@ -42,10 +42,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Original post not found" }, { status: 404 });
     }
 
-    const hasReposted = (user.reposts || []).includes(originalPost._id.toString());
+    const existingRepost = await Repost.findOne({ user: user._id, post: originalPost._id });
+    const hasReposted = !!existingRepost || (user.reposts || []).includes(originalPost._id.toString());
 
     if (hasReposted) {
-      // Unrepost
+      // Delete from Repost collection
+      await Repost.deleteOne({ user: user._id, post: originalPost._id });
+
+      // Unrepost: Dual Pull from User.reposts
       await User.updateOne(
         { email },
         { $pull: { reposts: originalPost._id.toString() } }
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
       await Post.updateOne(
         { _id: originalPost._id },
         {
-          $pull: { repostedBy: email },
+          $pull: { repostedBy: user._id },
           $inc: { repostCount: -1 },
         }
       );
@@ -71,7 +75,14 @@ export async function POST(req: NextRequest) {
         repostCount: Math.max(0, updatedOriginal?.repostCount || 0),
       });
     } else {
-      // Repost
+      // Insert into Repost collection
+      await Repost.updateOne(
+        { user: user._id, post: originalPost._id },
+        { $setOnInsert: { user: user._id, post: originalPost._id } },
+        { upsert: true }
+      );
+
+      // Repost: Dual Add to User.reposts
       await User.updateOne(
         { email },
         { $addToSet: { reposts: originalPost._id.toString() } }
@@ -80,7 +91,7 @@ export async function POST(req: NextRequest) {
       await Post.updateOne(
         { _id: originalPost._id },
         {
-          $addToSet: { repostedBy: email },
+          $addToSet: { repostedBy: user._id },
           $inc: { repostCount: 1 },
         }
       );
@@ -95,7 +106,14 @@ export async function POST(req: NextRequest) {
         isRepost: true,
         originalPost: originalPost._id,
         repostedByAuthor: user._id,
-        repostedBy: [email],
+        repostedBy: [user._id],
+      });
+
+      // Track Interaction for Recommendations
+      await Interaction.create({
+        user: user._id,
+        post: originalPost._id,
+        action: "repost",
       });
 
       const updatedOriginal = await Post.findById(originalPost._id);

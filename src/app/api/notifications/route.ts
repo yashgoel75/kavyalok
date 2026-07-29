@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../db/schema";
+import { User, Notification as NotificationModel } from "../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
-interface Notification {
+interface LegacyNotification {
   type: string;
   fromEmail: string;
   postId?: string;
@@ -12,11 +12,12 @@ interface Notification {
 }
 
 interface UserType {
+  _id: any;
   name: string;
   username: string;
   email: string;
   profilePicture?: string;
-  notifications?: Notification[];
+  notifications?: LegacyNotification[];
   followers: string[];
   following: string[];
 }
@@ -44,7 +45,28 @@ export async function GET(req: NextRequest) {
     if (!user)
       return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    const notifications = (user.notifications || []).filter(n => !n.read);
+    // Fetch from standalone Notification collection
+    const standaloneNotifications = await NotificationModel.find({
+      recipient: user._id,
+      read: false,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Embedded fallback notifications
+    const embeddedNotifications = (user.notifications || []).filter((n) => !n.read);
+
+    // Merge both for complete compatibility
+    const notifications = [
+      ...standaloneNotifications.map((n) => ({
+        type: n.type,
+        fromEmail: n.fromEmail,
+        postId: n.postId ? n.postId.toString() : n.post ? n.post.toString() : undefined,
+        read: n.read,
+        createdAt: n.createdAt,
+      })),
+      ...embeddedNotifications,
+    ];
 
     return NextResponse.json({ notifications });
   } catch (err) {

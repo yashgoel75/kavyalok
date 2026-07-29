@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../../db/schema";
+import { User, Like, Bookmark } from "../../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 interface UserDocument {
+  _id: any;
   name: string;
   username: string;
   email: string;
@@ -50,8 +51,11 @@ export async function GET(req: NextRequest) {
 
     const userDoc = (Array.isArray(user) ? user[0] : user) as unknown as UserDocument;
 
-    const isLiked = userDoc.likes?.includes(postId) || false;
-    const isBookmarked = userDoc.bookmarks?.includes(postId) || false;
+    const likeDoc = await Like.findOne({ user: userDoc._id, post: postId });
+    const bookmarkDoc = await Bookmark.findOne({ user: userDoc._id, post: postId });
+
+    const isLiked = !!likeDoc || userDoc.likes?.includes(postId) || false;
+    const isBookmarked = !!bookmarkDoc || userDoc.bookmarks?.includes(postId) || false;
 
     return NextResponse.json({ isLiked, isBookmarked }, { status: 200 });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { User } from "../../../../../db/schema";
+import { User, Bookmark } from "../../../../../db/schema";
 import { register } from "@/instrumentation";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
@@ -22,15 +22,18 @@ export async function POST(req: Request) {
   }
 
   try {
-    const user = await User.findOneAndUpdate(
+    const user = await User.findOne({ email });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    await Bookmark.deleteOne({ user: user._id, post: postId });
+
+    const updatedUser = await User.findOneAndUpdate(
       { email },
       { $pull: { bookmarks: postId } },
       { new: true }
     ).lean();
 
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
-    return NextResponse.json({ success: true, user });
+    return NextResponse.json({ success: true, user: updatedUser });
   } catch (error) {
     console.error("Error removing bookmark:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

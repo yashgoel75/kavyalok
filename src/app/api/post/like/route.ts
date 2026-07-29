@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { Post, User } from "../../../../../db/schema";
+import { Post, User, Like, Notification, Interaction } from "../../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 export async function POST(req: NextRequest) {
@@ -35,18 +35,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    const hasLiked = user.likes?.includes(postId);
+    // Check existing like via new Like collection or fallback to embedded array
+    const existingLike = await Like.findOne({ user: user._id, post: post._id });
+    const hasLiked = !!existingLike || user.likes?.includes(postId);
 
     if (hasLiked) {
+      // Delete from Like collection
+      await Like.deleteOne({ user: user._id, post: post._id });
+
+      // Dual Pull from User.likes
       await User.updateOne({ email }, { $pull: { likes: postId } });
       post.likes = Math.max(0, post.likes - 1);
     } else {
+      // Insert into Like collection
+      await Like.updateOne(
+        { user: user._id, post: post._id },
+        { $setOnInsert: { user: user._id, post: post._id } },
+        { upsert: true }
+      );
+
+      // Dual Add to User.likes
       await User.updateOne({ email }, { $addToSet: { likes: postId } });
       post.likes += 1;
 
-      if (post.author.email !== email) {
+      const authorEmail = typeof post.author === "object" ? post.author.email : null;
+      const authorId = typeof post.author === "object" ? post.author._id : post.author;
+
+      if (authorEmail && authorEmail !== email) {
+        // Standalone Notification
+        await Notification.create({
+          recipient: authorId,
+          sender: user._id,
+          post: post._id,
+          postId: post._id,
+          type: "post_like",
+          fromEmail: email,
+          read: false,
+        });
+
+        // Dual Push Embedded Notification
         const notification = {
-          id: new Date().getTime().toString(),
           type: "post_like",
           fromEmail: email,
           postId: post._id,
@@ -55,10 +83,17 @@ export async function POST(req: NextRequest) {
         };
 
         await User.updateOne(
-          { email: post.author.email },
+          { email: authorEmail },
           { $push: { notifications: notification } }
         );
       }
+
+      // Track Interaction for Recommendations
+      await Interaction.create({
+        user: user._id,
+        post: post._id,
+        action: "like",
+      });
     }
 
     await post.save();

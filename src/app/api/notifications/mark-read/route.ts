@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../../db/schema";
+import { User, Notification as NotificationModel } from "../../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
-
-interface Notification {
-  type: string;
-  fromEmail: string;
-  postId?: string;
-  read: boolean;
-  createdAt: Date;
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -20,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await register();
-const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Missing token" }, { status: 401 });
     }
@@ -30,11 +22,18 @@ const authHeader = req.headers.get("Authorization");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await User.findOne({ email }) as (typeof User & { notifications?: Notification[] }) | null;
+    const user = await User.findOne({ email });
 
     if (!user) 
       return NextResponse.json({ error: "User not found" }, { status: 404 });
 
+    // Mark standalone notifications as read
+    await NotificationModel.updateMany(
+      { recipient: user._id, read: false },
+      { $set: { read: true } }
+    );
+
+    // Dual update: clear embedded notifications
     await User.updateOne({ email }, { $set: { notifications: [] } });
 
     return NextResponse.json({ success: true });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../db/schema";
+import { User, Bookmark } from "../../../../db/schema";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 export async function GET(req: Request) {
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     }
 
     try {
-        const user = await User.findOne(
+        const rawUser = await User.findOne(
             { email },
             {
                 profilePicture: 1,
@@ -35,14 +35,30 @@ export async function GET(req: Request) {
             }
         ).lean();
 
-        if (!user) {
+        if (!rawUser) {
             return NextResponse.json(
                 { error: "User not found" },
                 { status: 404 }
             );
         }
 
-        return NextResponse.json({ user });
+        const user = (Array.isArray(rawUser) ? rawUser[0] : rawUser) as any;
+
+        // Fetch from Bookmark collection to ensure complete coverage
+        const userBookmarks = await Bookmark.find({ user: user._id }).lean();
+        const bookmarkPostIdsFromColl = userBookmarks.map((b: any) => b.post.toString());
+        
+        // Merge with legacy bookmarks array for zero downtime
+        const combinedBookmarks = Array.from(
+            new Set([...(user.bookmarks || []), ...bookmarkPostIdsFromColl])
+        );
+
+        return NextResponse.json({
+            user: {
+                ...user,
+                bookmarks: combinedBookmarks,
+            },
+        });
     } catch (error) {
         console.error("Error fetching user:", error);
         return NextResponse.json(

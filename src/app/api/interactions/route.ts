@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { register } from "@/instrumentation";
-import { User } from "../../../../db/schema";
+import { User, Like, Bookmark } from "../../../../db/schema";
 import redis from "@/lib/redis";
 import { verifyFirebaseToken } from "@/lib/verifyFirebaseToken";
 
 interface UserDocument {
+  _id: any;
   likes?: string[];
   bookmarks?: string[];
 }
@@ -60,8 +61,16 @@ export async function GET(req: NextRequest) {
 
     const u = user as UserDocument;
 
-    const likesAll = (u.likes || []).filter(id => postIds.includes(id));
-    const bookmarksAll = (u.bookmarks || []).filter(id => postIds.includes(id));
+    // Fetch from scalable collections
+    const userLikesDocs = await Like.find({ user: u._id, post: { $in: postIds } }).lean();
+    const userBookmarksDocs = await Bookmark.find({ user: u._id, post: { $in: postIds } }).lean();
+
+    const likesFromColl = userLikesDocs.map((l) => l.post.toString());
+    const bookmarksFromColl = userBookmarksDocs.map((b) => b.post.toString());
+
+    // Merge with legacy user arrays for complete accuracy
+    const likesAll = Array.from(new Set([...likesFromColl, ...(u.likes || []).filter((id) => postIds.includes(id))]));
+    const bookmarksAll = Array.from(new Set([...bookmarksFromColl, ...(u.bookmarks || []).filter((id) => postIds.includes(id))]));
 
     const likes = paginate(likesAll, page, limit);
     const bookmarks = paginate(bookmarksAll, page, limit);
@@ -114,15 +123,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(cached);
     }
 
-    const user = await User.findOne({ email }).select("likes bookmarks").lean();
+    const user = await User.findOne({ email }).select("_id likes bookmarks").lean();
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const u = user as UserDocument;
 
-    const likesAll = (u.likes || []).filter(id => postIds.includes(id));
-    const bookmarksAll = (u.bookmarks || []).filter(id => postIds.includes(id));
+    // Fetch from scalable collections
+    const userLikesDocs = await Like.find({ user: u._id, post: { $in: postIds } }).lean();
+    const userBookmarksDocs = await Bookmark.find({ user: u._id, post: { $in: postIds } }).lean();
+
+    const likesFromColl = userLikesDocs.map((l) => l.post.toString());
+    const bookmarksFromColl = userBookmarksDocs.map((b) => b.post.toString());
+
+    // Merge with legacy user arrays for complete accuracy
+    const likesAll = Array.from(new Set([...likesFromColl, ...(u.likes || []).filter((id) => postIds.includes(id))]));
+    const bookmarksAll = Array.from(new Set([...bookmarksFromColl, ...(u.bookmarks || []).filter((id) => postIds.includes(id))]));
 
     const likes = paginate(likesAll, page, limit);
     const bookmarks = paginate(bookmarksAll, page, limit);
