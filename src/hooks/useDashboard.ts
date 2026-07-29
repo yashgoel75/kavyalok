@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { getFirebaseToken } from "@/utils";
 import { useUser, User } from "@/context/UserContext";
 
@@ -16,19 +17,28 @@ export interface Post {
     color: string;
 }
 
+const fetchPostsPage = async ({ pageParam = 1, userEmail }: { pageParam: number; userEmail?: string | null }) => {
+    const exclude = userEmail ? `&excludeEmail=${encodeURIComponent(userEmail)}` : "";
+    const res = await fetch(`/api/getallposts?page=${pageParam}&limit=9${exclude}`);
+    if (!res.ok) throw new Error("Failed to fetch posts");
+    const data = await res.json();
+
+    const filtered = userEmail 
+        ? data.posts.filter((p: Post) => p.author?.email !== userEmail)
+        : data.posts;
+
+    return {
+        posts: filtered as Post[],
+        hasMore: data.hasMore as boolean,
+        nextPage: data.hasMore ? pageParam + 1 : undefined,
+    };
+};
+
 export function useDashboard() {
     const router = useRouter();
     const { firebaseUser: user, userData, loading, logout: handleLogout } = useUser();
 
-    const [posts, setPosts] = useState<Post[] | null>(null);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingPosts, setLoadingPosts] = useState(false);
-
-    // Interactions
-    const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
-    const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
-    const fetchedInteractionIdsRef = useRef<Set<string>>(new Set());
+    const userEmail = user?.email || userData?.email;
 
     // Redirect unauthenticated user to home
     useEffect(() => {
@@ -37,36 +47,34 @@ export function useDashboard() {
         }
     }, [loading, user, router]);
 
-    // Parallel feed fetch (does NOT block on userData loading)
+    // TanStack React Query for infinite scrolling
+    const {
+        data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading: loadingPosts,
+    } = useInfiniteQuery({
+        queryKey: ["dashboard-posts", userEmail],
+        queryFn: ({ pageParam = 1 }) => fetchPostsPage({ pageParam, userEmail }),
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => lastPage.nextPage,
+        enabled: !loading,
+    });
+
+    const posts = useMemo(() => {
+        return data?.pages.flatMap((page) => page.posts) ?? [];
+    }, [data]);
+
+    // Local override state for likes count & status
+    const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
+    const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
+    const [likesOverrides, setLikesOverrides] = useState<Record<string, number>>({});
+    const fetchedInteractionIdsRef = useRef<Set<string>>(new Set());
+
+    // Fetch user interaction statuses (likes/bookmarks) for loaded posts
     useEffect(() => {
-        const fetchPosts = async () => {
-            if (loadingPosts || !hasMore) return;
-
-            setLoadingPosts(true);
-            try {
-                const exclude = user?.email ? `&excludeEmail=${encodeURIComponent(user.email)}` : "";
-                const res = await fetch(`/api/getallposts?page=${page}&limit=9${exclude}`);
-                const data = await res.json();
-
-                const userEmail = user?.email || userData?.email;
-                const filtered = userEmail 
-                    ? data.posts.filter((p: Post) => p.author?.email !== userEmail)
-                    : data.posts;
-
-                setPosts((prev) => (prev ? [...prev, ...filtered] : filtered));
-                setHasMore(data.hasMore);
-            } catch (err) {
-                console.error("Error fetching posts:", err);
-            } finally {
-                setLoadingPosts(false);
-            }
-        };
-
-        fetchPosts();
-    }, [page, user?.email]);
-
-    useEffect(() => {
-        if (!user || !posts?.length) return;
+        if (!user || !posts.length) return;
 
         const fetchInteractions = async () => {
             const newPostIds = posts
@@ -82,8 +90,8 @@ export function useDashboard() {
                     body: JSON.stringify({
                         email: user.email,
                         postIds: newPostIds,
-                        page,
-                        limit: 9,
+                        page: 1,
+                        limit: newPostIds.length,
                     }),
                     headers: {
                         "Content-Type": "application/json",
@@ -114,7 +122,14 @@ export function useDashboard() {
         };
 
         fetchInteractions();
-    }, [user, posts, page]);
+    }, [user, posts]);
+
+    const displayPosts = useMemo(() => {
+        return posts.map((p) => ({
+            ...p,
+            likes: likesOverrides[p._id] !== undefined ? likesOverrides[p._id] : p.likes,
+        }));
+    }, [posts, likesOverrides]);
 
     const toggleLike = async (postId: string) => {
         if (!user) return;
@@ -132,12 +147,13 @@ export function useDashboard() {
                 body: JSON.stringify({ postId, email: user.email }),
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to like post");
+            const responseData = await res.json();
+            if (!res.ok) throw new Error(responseData.error || "Failed to like post");
 
-            setPosts((prev) =>
-                prev ? prev.map((p) => p._id === postId ? { ...p, likes: data.likes } : p) : prev
-            );
+            setLikesOverrides((prev) => ({
+                ...prev,
+                [postId]: responseData.likes,
+            }));
         } catch (err) {
             console.error("Error liking post:", err);
         }
@@ -158,8 +174,8 @@ export function useDashboard() {
                 },
                 body: JSON.stringify({ postId, email: user.email }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to bookmark post");
+            const responseData = await res.json();
+            if (!res.ok) throw new Error(responseData.error || "Failed to bookmark post");
         } catch (err) {
             console.error(err);
         }
@@ -168,15 +184,16 @@ export function useDashboard() {
     return {
         user,
         userData,
-        posts,
+        posts: displayPosts,
         loading,
         loadingPosts,
-        hasMore,
+        hasMore: !!hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
         likedPosts,
         bookmarkedPosts,
         handleLogout,
         toggleLike,
         toggleBookmark,
-        setPage
     };
 }

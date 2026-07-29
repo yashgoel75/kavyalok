@@ -15,12 +15,13 @@ export default function Dashboard() {
     loading,
     loadingPosts,
     hasMore,
+    isFetchingNextPage,
+    fetchNextPage,
     likedPosts,
     bookmarkedPosts,
     handleLogout,
     toggleLike,
     toggleBookmark,
-    setPage,
   } = useDashboard();
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -65,7 +66,8 @@ export default function Dashboard() {
               onBookmark={toggleBookmark}
               hasMore={hasMore}
               loadingPosts={loadingPosts}
-              onLoadMore={() => setPage((prev) => prev + 1)}
+              isFetchingNextPage={isFetchingNextPage}
+              onLoadMore={fetchNextPage}
             />
           )}
         </main>

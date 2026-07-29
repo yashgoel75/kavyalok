@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useMemo } from "react";
-import PostCard from "./PostCard"; // Assuming this exists
+import React, { useEffect, useState, useMemo, useRef } from "react";
+import PostCard from "./PostCard";
 import { User, Post } from "@/hooks/useDashboard";
 import { useRouter } from "next/navigation";
 import { getTextColor, getIconColor, getCommentColor } from "@/lib/utils";
 import { User as FirebaseUser } from "firebase/auth";
-import GradientText from "../GradientText";
 import Link from "next/link";
+import { Loader2, Plus, Feather } from "lucide-react";
+import CreatePostModal from "@/components/post/CreatePostModal";
 
 interface FeedProps {
   posts: Post[] | null;
@@ -18,6 +19,7 @@ interface FeedProps {
   onLoadMore: () => void;
   hasMore: boolean;
   loadingPosts: boolean;
+  isFetchingNextPage?: boolean;
 }
 
 export default function PostFeed({
@@ -31,9 +33,12 @@ export default function PostFeed({
   onLoadMore,
   hasMore,
   loadingPosts,
+  isFetchingNextPage = false,
 }: FeedProps) {
   const [filter, setFilter] = useState<"ALL" | "FRIENDS">("ALL");
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const router = useRouter();
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const defaultPostColor = userData?.defaultPostColor;
 
@@ -54,71 +59,105 @@ export default function PostFeed({
       : posts?.filter((p) => userData?.following?.includes(p.author.email));
   }, [filter, posts, userData?.following]);
 
+  // Auto infinite scroll observer
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || isFetchingNextPage || loadingPosts) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isFetchingNextPage && !loadingPosts) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" }
+    );
+
+    observer.observe(sentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [hasMore, isFetchingNextPage, loadingPosts, onLoadMore]);
+
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Welcome back, {userData?.name || "User"} 👋
-        </h1>
-        <p className="text-gray-600">
-          Discover amazing content from the community
-        </p>
+    <div className="max-w-6xl mx-auto p-6 font-sans">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">
+            Welcome back, {userData?.name || "Writer"} 👋
+          </h1>
+          <p className="text-gray-600 font-medium text-sm">
+            Discover creative writing, poetry, and stories from the community.
+          </p>
+        </div>
+
+        {/* Quick Create Post Button */}
+        <button
+          onClick={() => setIsCreatePostOpen(true)}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-900 text-white font-bold text-sm shadow-md hover:bg-gray-800 transition-all active:scale-95 cursor-pointer self-start sm:self-auto"
+        >
+          <Feather size={16} />
+          <span>New Post</span>
+        </button>
       </div>
 
+      {/* Restored Exact Original Instagram Banner */}
       <Link target="_blank" href="https://instagram.com/kavyalok.in">
-        <div className="flex cursor-pointer justify-center mb-3 py-2 items-center gap-3 text-[20px] md:text-[30px] font-bold text-white bg-gradient-to-tr rounded-lg from-yellow-400 to-yellow-800">
+        <div className="flex cursor-pointer justify-center mb-5 py-2.5 items-center gap-3 text-[20px] md:text-[30px] font-bold text-white bg-gradient-to-tr rounded-lg from-yellow-400 to-yellow-800 shadow-xs hover:opacity-95 transition-opacity">
           <div className="custom-class">Follow Kavyalok on Instagram</div>
         </div>
       </Link>
 
-      <div className="flex gap-4 mb-4">
+      {/* Navigation Filter Tabs */}
+      <div className="flex items-center gap-2 mb-6 border-b border-gray-100 pb-3">
         <button
           onClick={() => setFilter("ALL")}
-          className={`border px-3 py-1 rounded-md cursor-pointer transition ${
+          className={`px-4 py-2 rounded-xl text-sm font-bold cursor-pointer transition-all ${
             filter === "ALL"
-              ? "bg-yellow-400 border-yellow-400 text-yellow-900"
-              : "hover:border-yellow-400"
+              ? "bg-gray-900 text-white shadow-sm"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
           }`}
         >
           Recents
         </button>
         <button
           onClick={() => setFilter("FRIENDS")}
-          className={`border px-3 py-1 rounded-md cursor-pointer transition ${
+          className={`px-4 py-2 rounded-xl text-sm font-bold cursor-pointer transition-all ${
             filter === "FRIENDS"
-              ? "bg-yellow-400 border-yellow-400 text-yellow-900"
-              : "hover:border-yellow-400"
+              ? "bg-gray-900 text-white shadow-sm"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
           }`}
         >
           Friends
         </button>
       </div>
 
+      {/* Posts Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loadingPosts ? (
+        {loadingPosts && (!displayPosts || displayPosts.length === 0) ? (
           [...Array(6)].map((_, i) => (
             <div
               key={i}
-              className="border border-gray-200 p-5 rounded-lg bg-white shadow-sm animate-pulse space-y-4"
+              className="border border-gray-100 p-6 rounded-2xl bg-white shadow-sm animate-pulse space-y-4"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-300"></div>
-                <div className="h-4 w-24 bg-gray-300 rounded"></div>
+                <div className="w-10 h-10 rounded-full bg-gray-200"></div>
+                <div className="h-4 w-28 bg-gray-200 rounded-md"></div>
               </div>
 
-              <div className="h-5 w-40 bg-gray-300 rounded mt-3"></div>
+              <div className="h-5 w-40 bg-gray-200 rounded-md mt-3"></div>
 
-              <div className="h-3 w-16 bg-gray-200 rounded"></div>
+              <div className="h-3 w-16 bg-gray-100 rounded-md"></div>
 
-              <div className="h-4 w-full bg-gray-200 rounded"></div>
-              <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
-              <div className="h-4 w-2/3 bg-gray-200 rounded"></div>
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-gray-100 rounded-md"></div>
+                <div className="h-4 w-3/4 bg-gray-100 rounded-md"></div>
+                <div className="h-4 w-2/3 bg-gray-100 rounded-md"></div>
+              </div>
 
-              <div className="w-full h-48 bg-gray-300 rounded-md"></div>
+              <div className="w-full h-48 bg-gray-100 rounded-xl"></div>
 
-              <div className="flex items-center gap-6 mt-4">
-                <div className="h-4 w-10 bg-gray-200 rounded"></div>
-                <div className="h-4 w-10 bg-gray-200 rounded"></div>
+              <div className="flex items-center gap-6 mt-4 pt-2">
+                <div className="h-4 w-12 bg-gray-100 rounded-md"></div>
+                <div className="h-4 w-12 bg-gray-100 rounded-md"></div>
               </div>
             </div>
           ))
@@ -142,23 +181,32 @@ export default function PostFeed({
             />
           ))
         ) : (
-          <div className="col-span-full flex justify-center py-20 text-gray-500">
-            No posts found
+          <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+            <p className="text-base font-bold text-gray-800">No posts found</p>
+            <p className="text-xs text-gray-400 mt-1">Check back later or change your filter.</p>
           </div>
         )}
       </div>
 
-      {hasMore && (
-        <div className="flex justify-center mt-8">
-          <button
-            onClick={onLoadMore}
-            disabled={loadingPosts}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loadingPosts ? "Loading..." : "Load More"}
-          </button>
-        </div>
-      )}
+      {/* Auto Infinite Scroll Sentinel Element */}
+      <div ref={sentinelRef} className="py-8 flex justify-center items-center">
+        {isFetchingNextPage && (
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm font-medium shadow-xs">
+            <Loader2 size={16} className="animate-spin text-gray-900" />
+            <span>Loading more posts...</span>
+          </div>
+        )}
+        {!hasMore && displayPosts && displayPosts.length > 0 && (
+          <p className="text-xs font-semibold text-gray-400">You've reached the end of the feed.</p>
+        )}
+      </div>
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={isCreatePostOpen}
+        onClose={() => setIsCreatePostOpen(false)}
+        firebaseUser={firebaseUser}
+      />
     </div>
   );
 }

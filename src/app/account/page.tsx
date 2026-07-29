@@ -19,7 +19,6 @@ import {
   MapPin,
   Feather,
   BookOpen,
-  Shield,
   Edit3,
   Share2,
   Trash2,
@@ -30,9 +29,16 @@ import {
   Heart,
   Eye,
   Clock,
+  Camera,
+  Grid,
+  Loader2,
+  QrCode,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseToken } from "@/utils";
+import CreatePostModal from "@/components/post/CreatePostModal";
+import FriendsModal from "@/components/user/FriendsModal";
+import ProfileCardModal from "@/components/user/ProfileCardModal";
 
 interface PrivacySettings {
   isPrivate: boolean;
@@ -72,11 +78,12 @@ interface User {
   followers?: string[];
   following?: string[];
   privacySettings?: PrivacySettings;
+  isVerified?: boolean;
 }
 
 export default function Account() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const { firebaseUser, userData: globalUserData, loading: globalLoading, refreshUserData } = useUser();
   const [userData, setUserData] = useState<User | null>(globalUserData as User | null);
@@ -84,21 +91,25 @@ export default function Account() {
   const [loading, setLoading] = useState(globalLoading);
 
   // Modals & Tabs
-  const [activeTab, setActiveTab] = useState<"works" | "pinned" | "settings">("works");
+  const [activeTab, setActiveTab] = useState<"posts" | "pinned">("posts");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSocialsModalOpen, setIsSocialsModalOpen] = useState(false);
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [isProfileCardOpen, setIsProfileCardOpen] = useState(false);
+  const [friendsModalState, setFriendsModalState] = useState<{
+    isOpen: boolean;
+    tab: "followers" | "following";
+  }>({ isOpen: false, tab: "followers" });
+
+  // Delete modal state
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
 
   // Operation States
   const [isUpdating, setIsUpdating] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [pinningPostId, setPinningPostId] = useState<string | null>(null);
 
-  // Username validation
-  const [usernameAvailable, setUsernameAvailable] = useState(true);
-  const [usernameAlreadyTaken, setUsernameAlreadyTaken] = useState(false);
-  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
-
-  // Card Menus & Copy
+  // Copy indicators
   const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -133,16 +144,8 @@ export default function Account() {
     }
   };
 
-  const handleUpdate = async () => {
+  const handleUpdateProfile = async () => {
     if (!firebaseUser || !formData) return;
-
-    if (formData.username !== userData?.username) {
-      if (!usernameAvailable || usernameAlreadyTaken) {
-        alert("Please choose an available username.");
-        return;
-      }
-    }
-
     setIsUpdating(true);
 
     try {
@@ -221,184 +224,92 @@ export default function Account() {
     }
   };
 
-  const handleTogglePrivacy = (key: keyof PrivacySettings) => {
-    setFormData((prev) => {
-      if (!prev) return null;
-      const current = prev.privacySettings || {
-        isPrivate: false,
-        showEmail: false,
-        allowMessages: true,
-        showActivity: true,
-      };
-      return {
-        ...prev,
-        privacySettings: {
-          ...current,
-          [key]: !current[key],
-        },
-      };
-    });
-  };
-
-  const savePrivacySettings = async () => {
-    if (!firebaseUser || !formData?.privacySettings) return;
-    setIsUpdating(true);
+  const handleDeletePost = async (postId: string) => {
+    if (!firebaseUser) return;
     try {
       const token = await getFirebaseToken();
-      const res = await fetch(`/api/user`, {
-        method: "PATCH",
+      const res = await fetch(`/api/post?id=${postId}&email=${encodeURIComponent(firebaseUser.email || "")}`, {
+        method: "DELETE",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          email: firebaseUser.email,
-          updates: {
-            privacySettings: formData.privacySettings,
-          },
-        }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error("Failed to delete post");
 
-      setUserData((prev) => (prev ? { ...prev, privacySettings: data.user.privacySettings } : prev));
-      alert("Privacy settings updated successfully!");
+      setUserData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          posts: prev.posts?.filter((p) => p._id !== postId),
+          pinnedPosts: prev.pinnedPosts?.filter((id) => id !== postId),
+        };
+      });
+      setDeletingPostId(null);
     } catch (err) {
       console.error(err);
-    } finally {
-      setIsUpdating(false);
+      alert("Failed to delete post.");
     }
   };
 
-  const uploadProfilePicture = async (file: File) => {
-    if (!file) return;
-    const token = await getFirebaseToken();
-    const signRes = await fetch("/api/signprofilepicture", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ folder: "profilePictures" }),
-    });
-
-    const { timestamp, signature, apiKey, folder } = await signRes.json();
-
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("api_key", apiKey);
-    fd.append("timestamp", timestamp.toString());
-    fd.append("signature", signature);
-    fd.append("folder", folder);
-
-    const uploadRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-      { method: "POST", body: fd }
-    );
-
-    const data = await uploadRes.json();
-    return data.secure_url;
-  };
-
-  const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !firebaseUser) return;
-
+  const handleAvatarUpload = async (file: File) => {
+    if (!firebaseUser) return;
     setIsUploadingImage(true);
-    try {
-      const imageUrl = await uploadProfilePicture(file);
-      const token = await getFirebaseToken();
 
-      const res = await fetch(`/api/user`, {
-        method: "PATCH",
+    try {
+      const token = await getFirebaseToken();
+      const signRes = await fetch("/api/signprofilepicture", {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          email: firebaseUser.email,
-          updates: { profilePicture: imageUrl },
-        }),
+        body: JSON.stringify({ folder: "profilePictures" }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const { timestamp, signature, apiKey, folder } = await signRes.json();
 
-      setUserData((prev) => ({ ...data.user, posts: prev?.posts || [] }));
-      setFormData((prev) => ({ ...data.user, posts: prev?.posts || [] }));
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      uploadData.append("api_key", apiKey);
+      uploadData.append("timestamp", timestamp.toString());
+      uploadData.append("signature", signature);
+      uploadData.append("folder", folder);
+
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: uploadData }
+      );
+
+      const data = await uploadRes.json();
+      if (data.secure_url) {
+        const updateRes = await fetch(`/api/user`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            email: firebaseUser.email,
+            updates: { profilePicture: data.secure_url },
+          }),
+        });
+
+        if (updateRes.ok) {
+          setUserData((prev) => (prev ? { ...prev, profilePicture: data.secure_url } : prev));
+          setFormData((prev) => (prev ? { ...prev, profilePicture: data.secure_url } : prev));
+          await refreshUserData();
+        }
+      }
     } catch (err) {
-      console.error("Failed to upload profile picture.", err);
+      console.error(err);
+      alert("Failed to upload avatar.");
     } finally {
       setIsUploadingImage(false);
     }
   };
 
-  const isUsernameAvailable = async (username: string) => {
-    if (!username || username === userData?.username) {
-      setUsernameAvailable(true);
-      setUsernameAlreadyTaken(false);
-      return;
-    }
-
-    setIsCheckingUsername(true);
-    try {
-      const res = await fetch(`/api/register/member?username=${encodeURIComponent(username)}`);
-      const data = await res.json();
-      if (data.usernameExists) {
-        setUsernameAvailable(false);
-        setUsernameAlreadyTaken(true);
-      } else {
-        setUsernameAlreadyTaken(false);
-        setUsernameAvailable(true);
-      }
-    } catch (error) {
-      console.error("Error checking username:", error);
-    } finally {
-      setIsCheckingUsername(false);
-    }
-  };
-
-  useEffect(() => {
-    const newUsername = formData?.username;
-    if (!newUsername || newUsername === userData?.username) return;
-
-    const delay = setTimeout(() => {
-      isUsernameAvailable(newUsername);
-    }, 600);
-
-    return () => clearTimeout(delay);
-  }, [formData?.username, userData?.username]);
-
-  const handleDeletePost = async (postId: string) => {
-    if (!firebaseUser) return;
-    const sure = window.confirm("Are you sure you want to delete this work?");
-    if (!sure) return;
-
-    try {
-      const token = await getFirebaseToken();
-      const res = await fetch(`/api/user/posts`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          email: firebaseUser.email,
-          postId: postId,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      setUserData((prev) => (prev ? { ...prev, posts: prev.posts?.filter((p) => p._id !== postId) } : prev));
-    } catch (err) {
-      console.error("Failed to delete post", err);
-    }
-  };
-
-  const handleCopyLink = (id: string) => {
+  const handleCopyPostLink = (id: string) => {
     const url = `${window.location.origin}/post/${id}`;
     navigator.clipboard.writeText(url);
     setCopiedPostId(id);
@@ -416,18 +327,17 @@ export default function Account() {
     return brightness > 128 ? "#0f172a" : "#ffffff";
   };
 
-  if (loading) {
+  if (loading || globalLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
         <Header />
         <main className="max-w-5xl mx-auto px-4 py-12 w-full flex-1">
-          <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xl animate-pulse space-y-6">
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="w-28 h-28 bg-slate-200 rounded-full" />
-              <div className="space-y-3 flex-1 text-center sm:text-left">
-                <div className="w-44 h-6 bg-slate-200 rounded-md mx-auto sm:mx-0" />
-                <div className="w-28 h-4 bg-slate-100 rounded-md mx-auto sm:mx-0" />
-                <div className="w-full max-w-md h-12 bg-slate-100 rounded-lg mx-auto sm:mx-0" />
+          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl animate-pulse space-y-6">
+            <div className="flex items-center gap-6">
+              <div className="w-32 h-32 bg-slate-200 rounded-full" />
+              <div className="space-y-3 flex-1">
+                <div className="w-48 h-6 bg-slate-200 rounded-md" />
+                <div className="w-32 h-4 bg-slate-100 rounded-md" />
               </div>
             </div>
           </div>
@@ -437,230 +347,187 @@ export default function Account() {
     );
   }
 
-  if (!userData) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
-        <Header />
-        <main className="flex-1 flex items-center justify-center py-20 px-4">
-          <div className="text-center bg-white p-10 rounded-3xl border border-slate-200 shadow-xl max-w-md">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">User Not Found</h2>
-            <p className="text-slate-500 text-sm mb-6">Unable to retrieve account details.</p>
-            <button
-              onClick={() => router.push("/")}
-              className="px-6 py-2.5 bg-[#bd9864] text-white rounded-xl font-semibold"
-            >
-              Go to Home
-            </button>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
+  if (!userData) return null;
 
   const pinnedPostIds = userData.pinnedPosts || [];
   const pinnedPostsList = userData.posts?.filter((p) => pinnedPostIds.includes(p._id)) || [];
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-between selection:bg-amber-500/20">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-between selection:bg-slate-900 selection:text-white font-sans">
       <Header />
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-24 w-full flex-1">
-        {/* Profile Hero Header Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-xl p-6 sm:p-8 mb-8 overflow-hidden"
-        >
-          {/* Subtle Ambient Top Accent */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#bd9864] via-amber-600 to-yellow-600" />
-
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-6 sm:gap-8 pt-2">
-            {/* Avatar with Upload */}
-            <div className="relative group flex-shrink-0">
-              <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden ring-4 ring-amber-500/20 shadow-md">
-                {userData.profilePicture ? (
-                  <Image
-                    src={userData.profilePicture}
-                    alt={userData.name}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#bd9864] to-[#dbb56a] text-3xl font-extrabold text-white">
-                    {userData.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                {isUploadingImage && (
-                  <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                    <div className="w-7 h-7 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingImage}
-                className="absolute bottom-1 right-1 bg-[#bd9864] text-white p-2 rounded-full shadow-lg hover:bg-[#a68250] hover:scale-110 active:scale-95 transition-all cursor-pointer ring-2 ring-white"
-                title="Update Profile Picture"
-              >
-                <Edit3 size={14} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleProfilePictureChange}
-                className="hidden"
-              />
-            </div>
-
-            {/* Profile Information & Literary Metadata */}
-            <div className="flex-1 text-center md:text-left space-y-3">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                      {userData.name}
-                    </h1>
-                    {userData.penName && (
-                      <span className="px-3 py-1 bg-amber-100/80 text-amber-900 font-semibold text-xs rounded-full flex items-center gap-1 border border-amber-300/60">
-                        <Feather size={12} />
-                        {userData.penName}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-slate-500 font-medium text-sm mt-0.5">@{userData.username}</p>
-                </div>
-
-                {/* Primary Action Buttons */}
-                <div className="flex items-center justify-center md:justify-end gap-2.5 pt-2 md:pt-0">
-                  <button
-                    onClick={() => setIsEditModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#bd9864] hover:bg-[#a68250] text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Edit3 size={15} />
-                    <span>Edit Profile</span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsSocialsModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs sm:text-sm font-semibold rounded-xl border border-slate-200 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Globe size={15} className="text-amber-700" />
-                    <span>Connect & Socials</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Location & Literary Quote */}
-              <div className="flex items-center justify-center md:justify-start gap-4 flex-wrap text-xs sm:text-sm text-slate-600 font-medium pt-1">
-                {userData.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin size={14} className="text-amber-700" />
-                    {userData.location}
-                  </span>
-                )}
-                {userData.favoriteGenre && (
-                  <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-700 font-semibold">
-                    <BookOpen size={13} className="text-amber-700" />
-                    Genre: {userData.favoriteGenre}
-                  </span>
-                )}
-              </div>
-
-              {/* Bio & Literary Quote Box */}
-              {(userData.bio || userData.literaryQuote) && (
-                <div className="mt-3 p-4 bg-slate-50/90 rounded-2xl border border-slate-200/70 text-slate-700 text-xs sm:text-sm space-y-1.5 leading-relaxed">
-                  {userData.bio && <p className="font-normal">{userData.bio}</p>}
-                  {userData.literaryQuote && (
-                    <p className="italic text-amber-900 font-serif border-l-2 border-amber-500 pl-3 py-0.5">
-                      &quot;{userData.literaryQuote}&quot;
-                    </p>
-                  )}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 pb-24 w-full flex-1">
+        {/* Instagram + Pinterest Inspired Profile Header */}
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-8 border-b border-slate-200/80 pb-8 mb-8">
+          {/* Circular Avatar */}
+          <div
+            onClick={() => avatarInputRef.current?.click()}
+            className="relative flex-shrink-0 group cursor-pointer"
+          >
+            <div className="relative w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-slate-200 shadow-md">
+              {userData.profilePicture ? (
+                <Image
+                  src={userData.profilePicture}
+                  alt={userData.name}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-slate-900 text-4xl font-extrabold text-white">
+                  {userData.name.charAt(0).toUpperCase()}
                 </div>
               )}
 
-              {/* Stats Counters Bar */}
-              <div className="grid grid-cols-4 gap-2 pt-4 border-t border-slate-100 max-w-lg mx-auto md:mx-0">
-                <div className="text-center p-2 rounded-xl bg-slate-50 border border-slate-200/60">
-                  <div className="text-lg font-extrabold text-slate-900">{userData.posts?.length || 0}</div>
-                  <div className="text-[11px] font-medium text-slate-500">Works</div>
-                </div>
-                <div className="text-center p-2 rounded-xl bg-amber-50/80 border border-amber-200/60">
-                  <div className="text-lg font-extrabold text-amber-900">{pinnedPostIds.length}</div>
-                  <div className="text-[11px] font-semibold text-amber-800 flex items-center justify-center gap-1">
-                    <Pin size={11} />
-                    <span>Pinned</span>
-                  </div>
-                </div>
-                <Link href="/account/friends" className="text-center p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 transition-colors">
-                  <div className="text-lg font-extrabold text-slate-900">{userData.followers?.length || 0}</div>
-                  <div className="text-[11px] font-medium text-slate-500">Followers</div>
-                </Link>
-                <Link href="/account/friends" className="text-center p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 transition-colors">
-                  <div className="text-lg font-extrabold text-slate-900">{userData.following?.length || 0}</div>
-                  <div className="text-[11px] font-medium text-slate-500">Following</div>
-                </Link>
+              <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold">
+                {isUploadingImage ? (
+                  <Loader2 size={24} className="animate-spin" />
+                ) : (
+                  <>
+                    <Camera size={20} className="mb-1" />
+                    <span>Change</span>
+                  </>
+                )}
               </div>
             </div>
+
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleAvatarUpload(f);
+              }}
+              className="hidden"
+            />
           </div>
-        </motion.div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center justify-between gap-2 border-b border-slate-200 mb-6 pb-2 overflow-x-auto">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab("works")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                activeTab === "works"
-                  ? "bg-[#bd9864] text-white shadow-md shadow-amber-900/10"
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-              }`}
-            >
-              <BookOpen size={16} />
-              <span>My Works ({userData.posts?.length || 0})</span>
-            </button>
+          {/* User Info & Instagram Style Inline Metrics */}
+          <div className="flex-1 text-center md:text-left space-y-4 w-full">
+            {/* Username + Action Buttons */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center justify-center md:justify-start gap-2.5 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  @{userData.username}
+                </h1>
+                {userData.isVerified && (
+                  <span className="p-1 bg-emerald-600 text-white rounded-full" title="Verified Account">
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                )}
+              </div>
 
+              {/* Instagram & Pinterest Style Larger Action Buttons */}
+              <div className="flex items-center justify-center md:justify-end gap-3 flex-wrap">
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="px-6 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs sm:text-sm font-extrabold border border-slate-200/80 transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+                >
+                  <Edit3 size={15} />
+                  <span>Edit profile</span>
+                </button>
+
+                {/* Spotify-style Visual Profile Card Trigger */}
+                <button
+                  onClick={() => setIsProfileCardOpen(true)}
+                  className="px-6 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 text-xs sm:text-sm font-extrabold border border-slate-200/80 transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+                >
+                  <QrCode size={16} />
+                  <span>Share profile</span>
+                </button>
+
+                <button
+                  onClick={() => setIsCreatePostOpen(true)}
+                  className="px-6 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-extrabold shadow-md transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <Plus size={16} />
+                  <span>Create</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Instagram Style Inline Metric Counters */}
+            <div className="flex items-center justify-center md:justify-start gap-6 text-sm sm:text-base font-semibold text-slate-900 pt-1">
+              <div>
+                <span className="font-extrabold">{userData.posts?.length || 0}</span>{" "}
+                <span className="text-slate-500 font-normal">posts</span>
+              </div>
+              <button
+                onClick={() => setFriendsModalState({ isOpen: true, tab: "followers" })}
+                className="hover:underline cursor-pointer"
+              >
+                <span className="font-extrabold">{userData.followers?.length || 0}</span>{" "}
+                <span className="text-slate-500 font-normal">followers</span>
+              </button>
+              <button
+                onClick={() => setFriendsModalState({ isOpen: true, tab: "following" })}
+                className="hover:underline cursor-pointer"
+              >
+                <span className="font-extrabold">{userData.following?.length || 0}</span>{" "}
+                <span className="text-slate-500 font-normal">following</span>
+              </button>
+            </div>
+
+            {/* Bio & Details */}
+            <div className="text-xs sm:text-sm text-slate-700 space-y-1 font-medium max-w-xl mx-auto md:mx-0">
+              <p className="font-extrabold text-slate-900">
+                {userData.name} {userData.penName && <span className="font-semibold text-slate-500">• ✒️ {userData.penName}</span>}
+              </p>
+              {userData.bio && <p className="text-slate-600 leading-relaxed font-normal">{userData.bio}</p>}
+              {userData.literaryQuote && (
+                <p className="italic text-slate-800 font-serif text-xs pt-0.5">&quot;{userData.literaryQuote}&quot;</p>
+              )}
+              {userData.location && (
+                <p className="text-xs text-slate-400 font-normal pt-1">
+                  📍 {userData.location} {userData.favoriteGenre && `• Genre: ${userData.favoriteGenre}`}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Story Highlights & Filter Bar */}
+        <div className="flex items-center gap-3 overflow-x-auto pb-4 mb-8 no-scrollbar border-b border-slate-100">
+          <button
+            onClick={() => setActiveTab("posts")}
+            className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === "posts"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <Grid size={14} />
+            <span>Posts ({userData.posts?.length || 0})</span>
+          </button>
+
+          {pinnedPostsList.length > 0 && (
             <button
               onClick={() => setActiveTab("pinned")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === "pinned"
-                  ? "bg-[#bd9864] text-white shadow-md shadow-amber-900/10"
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              <Pin size={16} />
+              <Pin size={14} />
               <span>Pinned ({pinnedPostsList.length})</span>
             </button>
-
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                activeTab === "settings"
-                  ? "bg-[#bd9864] text-white shadow-md shadow-amber-900/10"
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-              }`}
-            >
-              <Shield size={16} />
-              <span>Account & Privacy</span>
-            </button>
-          </div>
+          )}
 
           <button
-            onClick={() => router.push("/account/createPost")}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white font-semibold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-95 cursor-pointer flex-shrink-0"
+            onClick={() => setIsSocialsModalOpen(true)}
+            className="px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer flex items-center gap-2"
           >
-            <Plus size={16} />
-            <span>New Work</span>
+            <Globe size={14} />
+            <span>Social Links</span>
           </button>
         </div>
 
-        {/* Tab 1: All Works */}
-        {activeTab === "works" && (
+        {/* Pinterest-Style Posts Grid - Expanded Card Sizes */}
+        {activeTab === "posts" && (
           <div>
             {userData.posts && userData.posts.length > 0 ? (
-              <div className="grid md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                 {userData.posts.map((post) => {
                   const isPinned = pinnedPostIds.includes(post._id);
                   const wordCount = post.content?.replace(/<[^>]*>?/gm, "").split(/\s+/).length || 0;
@@ -675,92 +542,87 @@ export default function Account() {
                         backgroundColor: post.color || "#ffffff",
                         color: getTextColor(post.color || "#ffffff"),
                       }}
-                      className={`relative rounded-3xl p-6 shadow-md hover:shadow-xl transition-all border ${
-                        isPinned ? "border-amber-500 ring-2 ring-amber-500/40" : "border-slate-200/80"
-                      } flex flex-col justify-between group`}
+                      className={`relative rounded-3xl p-7 sm:p-8 shadow-md hover:shadow-2xl transition-all border ${
+                        isPinned ? "border-slate-900 ring-2 ring-slate-900/20" : "border-slate-200/80"
+                      } flex flex-col justify-between group cursor-pointer overflow-hidden`}
+                      onClick={() => router.push(`/post/${post._id}`)}
                     >
-                      {/* Pinned Badge */}
-                      {isPinned && (
-                        <div className="absolute top-4 right-14 bg-amber-500 text-white px-2.5 py-0.5 rounded-full font-bold text-[11px] flex items-center gap-1 shadow-sm">
-                          <Pin size={11} />
-                          <span>Pinned</span>
-                        </div>
-                      )}
+                      {/* Top Badges */}
+                      <div className="flex items-center justify-between mb-4">
+                        {isPinned ? (
+                          <span className="bg-slate-900 text-white px-3.5 py-1 rounded-full font-extrabold text-xs flex items-center gap-1 shadow-xs">
+                            <Pin size={11} />
+                            <span>Pinned</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs opacity-70 font-semibold">{readingTime} min read</span>
+                        )}
 
-                      {/* Card Content Header */}
-                      <div className="mb-4">
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <h3
-                            onClick={() => router.push(`/post/${post._id}`)}
-                            className="text-lg sm:text-xl font-bold hover:underline cursor-pointer leading-snug"
-                          >
-                            {post.title}
-                          </h3>
-
-                          {/* Quick Pin Toggle Button */}
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleTogglePin(post._id)}
                             disabled={pinningPostId === post._id}
-                            className="p-1.5 rounded-xl bg-black/10 hover:bg-black/20 dark:bg-white/10 transition-colors"
-                            title={isPinned ? "Unpin Post" : "Pin to Profile"}
+                            className="p-2 rounded-xl bg-black/5 hover:bg-black/10 transition-colors"
+                            title={isPinned ? "Unpin Post" : "Pin Post"}
                           >
-                            {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+                            {isPinned ? <PinOff size={15} /> : <Pin size={15} />}
+                          </button>
+                          <button
+                            onClick={() => setDeletingPostId(post._id)}
+                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 transition-colors"
+                            title="Delete Post"
+                          >
+                            <Trash2 size={15} />
                           </button>
                         </div>
+                      </div>
 
-                        <div className="flex items-center gap-3 text-xs opacity-75 mb-3 font-medium">
+                      <div className="mb-5">
+                        <h3 className="text-xl sm:text-2xl font-extrabold hover:underline mb-2 leading-snug">
+                          {post.title}
+                        </h3>
+
+                        <div className="flex items-center gap-3 text-xs opacity-80 mb-4 font-bold">
                           <span className="flex items-center gap-1">
-                            <Clock size={12} />
-                            {readingTime} min read
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Heart size={12} className="text-rose-500 fill-rose-500" />
+                            <Heart size={14} className="text-rose-500 fill-rose-500" />
                             {post.likes} Likes
                           </span>
                         </div>
 
                         {post.picture && (
-                          <div
-                            onClick={() => router.push(`/post/${post._id}`)}
-                            className="relative w-full h-44 rounded-2xl overflow-hidden mb-4 cursor-pointer"
-                          >
-                            <Image src={post.picture} alt={post.title} fill className="object-cover hover:scale-105 transition-transform duration-300" />
+                          <div className="relative w-full h-56 rounded-2xl overflow-hidden mb-4 border border-black/10">
+                            <Image src={post.picture} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                           </div>
                         )}
 
                         <div
-                          className="text-xs sm:text-sm line-clamp-3 opacity-90 leading-relaxed font-normal cursor-pointer"
-                          onClick={() => router.push(`/post/${post._id}`)}
+                          className="text-sm line-clamp-3 opacity-90 leading-relaxed font-normal"
                           dangerouslySetInnerHTML={{ __html: post.content }}
                         />
                       </div>
 
-                      {/* Card Action Bar */}
-                      <div className="flex items-center justify-between pt-4 border-t border-black/10 dark:border-white/10 text-xs">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => router.push(`/post/${post._id}`)}
-                            className="px-3 py-1.5 rounded-xl bg-black/10 hover:bg-black/20 font-semibold transition-colors flex items-center gap-1"
-                          >
-                            <Eye size={14} />
-                            <span>Read</span>
-                          </button>
-                          <button
-                            onClick={() => handleCopyLink(post._id)}
-                            className="px-3 py-1.5 rounded-xl bg-black/10 hover:bg-black/20 font-semibold transition-colors flex items-center gap-1"
-                          >
-                            {copiedPostId === post._id ? <Check size={14} /> : <Share2 size={14} />}
-                            <span>{copiedPostId === post._id ? "Copied" : "Share"}</span>
-                          </button>
-                        </div>
+                      {/* Card Footer Actions */}
+                      <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-extrabold">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/post/${post._id}`);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-black/10 hover:bg-black/20 transition-colors flex items-center gap-1.5"
+                        >
+                          <Eye size={15} />
+                          <span>View Post</span>
+                        </button>
 
                         <button
-                          onClick={() => handleDeletePost(post._id)}
-                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                          title="Delete Work"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyPostLink(post._id);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-black/10 hover:bg-black/20 transition-colors flex items-center gap-1.5"
                         >
-                          <Trash2 size={16} />
+                          <Share2 size={15} />
+                          <span>{copiedPostId === post._id ? "Copied Link" : "Share"}</span>
                         </button>
                       </div>
                     </motion.div>
@@ -768,26 +630,32 @@ export default function Account() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 p-8">
-                <BookOpen size={36} className="mx-auto text-slate-300 mb-3" />
-                <h3 className="text-lg font-bold text-slate-800 mb-1">No Works Published Yet</h3>
-                <p className="text-slate-500 text-sm mb-4">Share your writings, ghazals, essays, and stories with the community.</p>
+              /* Instagram / Pinterest Style Empty State */
+              <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex flex-col items-center justify-center">
+                <div className="w-20 h-20 rounded-full border-2 border-slate-900 flex items-center justify-center mb-5 text-slate-900">
+                  <Camera size={36} strokeWidth={1.5} />
+                </div>
+                <h3 className="text-2xl font-extrabold text-slate-900 mb-2">Share Posts & Stories</h3>
+                <p className="text-slate-500 text-sm max-w-sm mb-6 font-medium">
+                  When you share posts and creative writing, they will appear on your profile.
+                </p>
                 <button
-                  onClick={() => router.push("/account/createPost")}
-                  className="px-6 py-2 bg-[#bd9864] text-white font-semibold rounded-xl"
+                  onClick={() => setIsCreatePostOpen(true)}
+                  className="px-7 py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
                 >
-                  Publish New Work
+                  <Plus size={16} />
+                  <span>Share your first post</span>
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* Tab 2: Pinned Collection */}
+        {/* Pinned Posts Grid */}
         {activeTab === "pinned" && (
           <div>
-            {pinnedPostsList.length > 0 ? (
-              <div className="grid md:grid-cols-2 gap-5">
+            {pinnedPostsList.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                 {pinnedPostsList.map((post) => (
                   <motion.div
                     key={post._id}
@@ -797,26 +665,32 @@ export default function Account() {
                       backgroundColor: post.color || "#ffffff",
                       color: getTextColor(post.color || "#ffffff"),
                     }}
-                    className="relative rounded-3xl p-6 shadow-xl border-2 border-amber-500 flex flex-col justify-between"
+                    className="relative rounded-3xl p-7 sm:p-8 shadow-xl border-2 border-slate-900 flex flex-col justify-between cursor-pointer"
+                    onClick={() => router.push(`/post/${post._id}`)}
                   >
-                    <div className="absolute -top-3 right-6 bg-amber-500 text-white px-3 py-1 rounded-full font-extrabold text-xs flex items-center gap-1 shadow-md">
-                      <Pin size={12} />
-                      <span>Featured Work</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="bg-slate-900 text-white px-3.5 py-1 rounded-full font-extrabold text-xs flex items-center gap-1">
+                        <Pin size={11} />
+                        <span>Pinned Post</span>
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePin(post._id);
+                        }}
+                        className="p-2 rounded-xl bg-black/10 hover:bg-black/20"
+                      >
+                        <PinOff size={15} />
+                      </button>
                     </div>
 
-                    <div className="mb-4 pt-2">
-                      <h3
-                        onClick={() => router.push(`/post/${post._id}`)}
-                        className="text-xl font-extrabold hover:underline cursor-pointer mb-2"
-                      >
+                    <div className="mb-4">
+                      <h3 className="text-xl sm:text-2xl font-extrabold hover:underline mb-2">
                         {post.title}
                       </h3>
 
                       {post.picture && (
-                        <div
-                          onClick={() => router.push(`/post/${post._id}`)}
-                          className="relative w-full h-48 rounded-2xl overflow-hidden mb-4 cursor-pointer"
-                        >
+                        <div className="relative w-full h-56 rounded-2xl overflow-hidden mb-4 border border-black/10">
                           <Image src={post.picture} alt={post.title} fill className="object-cover" />
                         </div>
                       )}
@@ -827,152 +701,156 @@ export default function Account() {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-semibold">
+                    <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-extrabold">
                       <span className="flex items-center gap-1">
-                        <Heart size={14} className="text-rose-500 fill-rose-500" />
+                        <Heart size={15} className="text-rose-500 fill-rose-500" />
                         {post.likes} Likes
                       </span>
                       <button
-                        onClick={() => handleTogglePin(post._id)}
-                        className="px-3 py-1.5 bg-black/10 hover:bg-black/20 rounded-xl flex items-center gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyPostLink(post._id);
+                        }}
+                        className="px-4 py-2 bg-black/10 rounded-xl flex items-center gap-1.5"
                       >
-                        <PinOff size={13} />
-                        <span>Unpin</span>
+                        <Share2 size={14} />
+                        <span>{copiedPostId === post._id ? "Copied" : "Share"}</span>
                       </button>
                     </div>
                   </motion.div>
                 ))}
               </div>
-            ) : (
-              <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 p-8">
-                <Pin size={36} className="mx-auto text-amber-500/60 mb-3" />
-                <h3 className="text-lg font-bold text-slate-800 mb-1">No Pinned Works</h3>
-                <p className="text-slate-500 text-sm mb-4">Pin up to 3 of your favorite literary works to showcase them on your profile.</p>
-                <button
-                  onClick={() => setActiveTab("works")}
-                  className="px-6 py-2 bg-[#bd9864] text-white font-semibold rounded-xl"
-                >
-                  Browse Published Works
-                </button>
-              </div>
             )}
           </div>
         )}
-
-        {/* Tab 3: Account & Privacy Settings */}
-        {activeTab === "settings" && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl border border-slate-200/80 shadow-xl p-6 sm:p-10 space-y-8"
-          >
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Shield className="text-amber-700" size={22} />
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Privacy & Profile Visibility</h2>
-              </div>
-              <p className="text-slate-500 text-xs sm:text-sm">Manage who can see your activity, contact details, and published works.</p>
-            </div>
-
-            <div className="space-y-4">
-              {/* Privacy Toggle 1 */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Private Account</h4>
-                  <p className="text-slate-500 text-xs">Only approved followers can view your works and profile details.</p>
-                </div>
-                <button
-                  onClick={() => handleTogglePrivacy("isPrivate")}
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
-                    formData?.privacySettings?.isPrivate ? "bg-amber-600" : "bg-slate-300"
-                  }`}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                      formData?.privacySettings?.isPrivate ? "translate-x-6" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Privacy Toggle 2 */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Display Email on Public Profile</h4>
-                  <p className="text-slate-500 text-xs">Allow visitors to see your contact email on your profile card.</p>
-                </div>
-                <button
-                  onClick={() => handleTogglePrivacy("showEmail")}
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
-                    formData?.privacySettings?.showEmail ? "bg-amber-600" : "bg-slate-300"
-                  }`}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                      formData?.privacySettings?.showEmail ? "translate-x-6" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Privacy Toggle 3 */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Allow Direct Messages</h4>
-                  <p className="text-slate-500 text-xs">Enable other writers and readers to message you directly.</p>
-                </div>
-                <button
-                  onClick={() => handleTogglePrivacy("allowMessages")}
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
-                    formData?.privacySettings?.allowMessages ? "bg-amber-600" : "bg-slate-300"
-                  }`}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                      formData?.privacySettings?.allowMessages ? "translate-x-6" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Privacy Toggle 4 */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Show Activity Status</h4>
-                  <p className="text-slate-500 text-xs">Show when you were last active on Kavyalok.</p>
-                </div>
-                <button
-                  onClick={() => handleTogglePrivacy("showActivity")}
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
-                    formData?.privacySettings?.showActivity ? "bg-amber-600" : "bg-slate-300"
-                  }`}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                      formData?.privacySettings?.showActivity ? "translate-x-6" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-4 border-t border-slate-100">
-              <button
-                onClick={savePrivacySettings}
-                disabled={isUpdating}
-                className="px-6 py-2.5 bg-[#bd9864] hover:bg-[#a68250] text-white font-bold text-sm rounded-xl shadow-md transition-all cursor-pointer"
-              >
-                {isUpdating ? "Saving..." : "Save Privacy Settings"}
-              </button>
-            </div>
-          </motion.div>
-        )}
       </main>
 
-      {/* Social Links Pop-up Drawer Modal */}
+      {/* Spotify-style Visual Profile Card Modal */}
+      <ProfileCardModal
+        isOpen={isProfileCardOpen}
+        onClose={() => setIsProfileCardOpen(false)}
+        user={{
+          name: userData.name,
+          username: userData.username,
+          profilePicture: userData.profilePicture,
+          penName: userData.penName,
+          bio: userData.bio,
+          isVerified: userData.isVerified,
+        }}
+      />
+
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && formData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[90vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
+                <div className="flex items-center gap-2">
+                  <Edit3 size={18} className="text-slate-900" />
+                  <h3 className="font-extrabold text-slate-900 text-lg">Edit Profile Settings</h3>
+                </div>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-700">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Username</label>
+                    <input
+                      type="text"
+                      value={formData.username}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Pen Name</label>
+                    <input
+                      type="text"
+                      value={formData.penName || ""}
+                      onChange={(e) => setFormData({ ...formData, penName: e.target.value })}
+                      placeholder="Writer alias"
+                      className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Bio</label>
+                  <textarea
+                    rows={3}
+                    value={formData.bio || ""}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    placeholder="Tell your story..."
+                    className="w-full text-sm font-medium px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Location</label>
+                    <input
+                      type="text"
+                      value={formData.location || ""}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="City, Country"
+                      className="w-full text-sm font-medium px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Favorite Genre</label>
+                    <input
+                      type="text"
+                      value={formData.favoriteGenre || ""}
+                      onChange={(e) => setFormData({ ...formData, favoriteGenre: e.target.value })}
+                      placeholder="e.g. Poetry, Fiction"
+                      className="w-full text-sm font-medium px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateProfile}
+                  disabled={isUpdating}
+                  className="px-5 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50"
+                >
+                  {isUpdating ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Social Links Modal */}
       <AnimatePresence>
         {isSocialsModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -981,8 +859,8 @@ export default function Account() {
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
                 <div className="flex items-center gap-2">
-                  <Globe className="text-amber-700" size={20} />
-                  <h3 className="font-bold text-slate-900 text-lg">Social Profiles & Connect</h3>
+                  <Globe className="text-slate-900" size={20} />
+                  <h3 className="font-extrabold text-slate-900 text-lg">Social Links</h3>
                 </div>
                 <button
                   onClick={() => setIsSocialsModalOpen(false)}
@@ -992,16 +870,16 @@ export default function Account() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-6 space-y-3 max-h-[70vh] overflow-y-auto">
                 {userData.instagram && (
                   <a
                     href={`https://instagram.com/${userData.instagram.replace("@", "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-amber-500/10 hover:from-pink-500/20 border border-pink-200 transition-all group"
+                    className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 transition-all group font-semibold text-xs"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-xl shadow-md">
+                      <div className="p-2 bg-slate-900 text-white rounded-xl">
                         <Instagram size={18} />
                       </div>
                       <div>
@@ -1018,10 +896,10 @@ export default function Account() {
                     href={`https://x.com/${userData.twitter.replace("@", "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 transition-all group"
+                    className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 transition-all group font-semibold text-xs"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-900 text-white rounded-xl shadow-md">
+                      <div className="p-2 bg-slate-900 text-white rounded-xl">
                         <Twitter size={18} />
                       </div>
                       <div>
@@ -1033,88 +911,18 @@ export default function Account() {
                   </a>
                 )}
 
-                {userData.youtube && (
-                  <a
-                    href={userData.youtube.startsWith("http") ? userData.youtube : `https://youtube.com/@${userData.youtube}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-red-50 hover:bg-red-100/80 border border-red-200 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-red-600 text-white rounded-xl shadow-md">
-                        <Youtube size={18} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">YouTube</h4>
-                        <p className="text-xs text-slate-500">{userData.youtube}</p>
-                      </div>
-                    </div>
-                    <ExternalLink size={16} className="text-slate-400 group-hover:text-slate-700" />
-                  </a>
-                )}
-
-                {userData.linkedin && (
-                  <a
-                    href={userData.linkedin.startsWith("http") ? userData.linkedin : `https://linkedin.com/in/${userData.linkedin}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-sky-50 hover:bg-sky-100/80 border border-sky-200 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-sky-700 text-white rounded-xl shadow-md">
-                        <Linkedin size={18} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">LinkedIn</h4>
-                        <p className="text-xs text-slate-500">{userData.linkedin}</p>
-                      </div>
-                    </div>
-                    <ExternalLink size={16} className="text-slate-400 group-hover:text-slate-700" />
-                  </a>
-                )}
-
-                {userData.website && (
-                  <a
-                    href={userData.website.startsWith("http") ? userData.website : `https://${userData.website}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-[#bd9864] text-white rounded-xl shadow-md">
-                        <Globe size={18} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">Personal Website</h4>
-                        <p className="text-xs text-slate-500">{userData.website}</p>
-                      </div>
-                    </div>
-                    <ExternalLink size={16} className="text-slate-400 group-hover:text-slate-700" />
-                  </a>
-                )}
-
                 {!userData.instagram && !userData.twitter && !userData.youtube && !userData.linkedin && !userData.website && (
                   <div className="text-center py-8 text-slate-400">
                     <Globe size={32} className="mx-auto mb-2 opacity-50" />
-                    <p className="text-sm font-medium">No social profiles configured yet.</p>
+                    <p className="text-sm font-semibold text-slate-600">No social links added yet.</p>
                   </div>
                 )}
               </div>
 
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                <button
-                  onClick={() => {
-                    setIsSocialsModalOpen(false);
-                    setIsEditModalOpen(true);
-                  }}
-                  className="text-xs font-bold text-amber-800 hover:underline flex items-center gap-1"
-                >
-                  <Edit3 size={13} />
-                  <span>Update Social Links</span>
-                </button>
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={() => setIsSocialsModalOpen(false)}
-                  className="px-4 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+                  className="px-5 py-2 bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
                 >
                   Close
                 </button>
@@ -1124,204 +932,57 @@ export default function Account() {
         )}
       </AnimatePresence>
 
-      {/* Edit Profile Full Modal */}
+      {/* Delete Confirmation Modal */}
       <AnimatePresence>
-        {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        {deletingPostId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 text-center"
             >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <Edit3 className="text-amber-700" size={20} />
-                  <h3 className="font-bold text-slate-900 text-lg">Edit Profile & Details</h3>
-                </div>
+              <Trash2 size={32} className="mx-auto text-rose-600 mb-3" />
+              <h4 className="font-extrabold text-slate-900 text-lg mb-1">Delete Post?</h4>
+              <p className="text-xs text-slate-500 mb-6 font-medium">This action cannot be undone. Are you sure you want to delete this post?</p>
+              <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs sm:text-sm">
-                {/* Basic Details */}
-                <div className="space-y-4">
-                  <h4 className="font-bold text-slate-900 text-base border-b pb-1 flex items-center gap-1.5">
-                    <Feather size={16} className="text-amber-700" />
-                    Personal & Literary Identity
-                  </h4>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Full Name</label>
-                      <input
-                        type="text"
-                        value={formData?.name || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, name: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Pen Name (Pseudonym)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Ghalib, Meer, Nirala"
-                        value={formData?.penName || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, penName: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Username</label>
-                      <input
-                        type="text"
-                        value={formData?.username || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, username: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                      {isCheckingUsername && <p className="text-[11px] text-slate-400 mt-1">Checking username...</p>}
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Location / Region</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. New Delhi, India"
-                        value={formData?.location || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, location: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Favorite Literary Genre</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Ghazal, Free Verse, Essays, Fiction, Philosophy"
-                      value={formData?.favoriteGenre || ""}
-                      onChange={(e) => setFormData((prev) => (prev ? { ...prev, favoriteGenre: e.target.value } : null))}
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Bio</label>
-                    <textarea
-                      value={formData?.bio || ""}
-                      onChange={(e) => setFormData((prev) => (prev ? { ...prev, bio: e.target.value } : null))}
-                      rows={2}
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Favorite Literary Quote or Excerpt</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 'Hazaron khwahishen aisi ki har khwahish pe dam nikle'"
-                      value={formData?.literaryQuote || ""}
-                      onChange={(e) => setFormData((prev) => (prev ? { ...prev, literaryQuote: e.target.value } : null))}
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Social Profiles */}
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <h4 className="font-bold text-slate-900 text-base flex items-center gap-1.5">
-                    <Globe size={16} className="text-amber-700" />
-                    Social Profiles
-                  </h4>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-medium text-slate-600 mb-1">Instagram</label>
-                      <input
-                        type="text"
-                        placeholder="username"
-                        value={formData?.instagram || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, instagram: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-medium text-slate-600 mb-1">X (Twitter)</label>
-                      <input
-                        type="text"
-                        placeholder="username"
-                        value={formData?.twitter || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, twitter: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-medium text-slate-600 mb-1">YouTube</label>
-                      <input
-                        type="text"
-                        placeholder="channel / link"
-                        value={formData?.youtube || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, youtube: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-medium text-slate-600 mb-1">LinkedIn</label>
-                      <input
-                        type="text"
-                        placeholder="username"
-                        value={formData?.linkedin || ""}
-                        onChange={(e) => setFormData((prev) => (prev ? { ...prev, linkedin: e.target.value } : null))}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-medium text-slate-600 mb-1">Personal Website / Blog</label>
-                    <input
-                      type="text"
-                      placeholder="https://yourwebsite.com"
-                      value={formData?.website || ""}
-                      onChange={(e) => setFormData((prev) => (prev ? { ...prev, website: e.target.value } : null))}
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 rounded-xl px-3.5 py-2 text-slate-800 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0">
-                <button
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl"
+                  onClick={() => setDeletingPostId(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleUpdate}
-                  disabled={isUpdating}
-                  className="px-6 py-2 bg-[#bd9864] hover:bg-[#a68250] text-white font-bold rounded-xl shadow-md disabled:opacity-50"
+                  onClick={() => handleDeletePost(deletingPostId)}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white shadow-md"
                 >
-                  {isUpdating ? "Saving Changes..." : "Save Profile"}
+                  Delete
                 </button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={isCreatePostOpen}
+        onClose={() => setIsCreatePostOpen(false)}
+        firebaseUser={firebaseUser}
+        onPostCreated={() => {
+          if (firebaseUser?.email) fetchUserPosts(firebaseUser.email);
+        }}
+      />
+
+      {/* Friends Modal */}
+      <FriendsModal
+        isOpen={friendsModalState.isOpen}
+        onClose={() => setFriendsModalState({ ...friendsModalState, isOpen: false })}
+        targetEmail={userData.email}
+        targetUsername={userData.username}
+        currentFirebaseUser={firebaseUser}
+        initialTab={friendsModalState.tab}
+      />
 
       <Navigation />
       <Footer />

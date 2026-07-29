@@ -136,55 +136,49 @@ const SidebarProfile = memo(
                   </Link>
                 </div>
 
-                {(userData.instagram || userData.snapchat) && (
-                  <div className="px-6 py-4 space-y-3">
-                    {userData.instagram && (
-                      <a
-                        href={`https://instagram.com/${userData.instagram}`}
-                        target="_blank"
-                        className="flex items-center gap-3 px-5 py-2 rounded-xl bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 text-white shadow-md hover:shadow-lg transition-all"
-                      >
-                        <Image
-                          loading="lazy"
-                          src={instagramImg}
-                          width={25}
-                          height={25}
-                          alt="Instagram"
-                        />
-                        <span className="font-medium truncate">
-                          {userData.instagram}
-                        </span>
-                      </a>
-                    )}
-
-                    {userData.snapchat && (
-                      <a
-                        href={`https://snapchat.com/add/${userData.snapchat}`}
-                        target="_blank"
-                        className="flex items-center gap-3 px-5 py-2 rounded-xl bg-[#f5ec00] text-black shadow-md hover:shadow-lg transition-all"
-                      >
-                        <Image
-                          src={snapchatImg}
-                          width={25}
-                          height={25}
-                          alt="Snapchat"
-                        />
-                        <span className="font-medium truncate">
-                          {userData.snapchat}
-                        </span>
-                      </a>
-                    )}
+                {/* Sidebar Integrated Footer Navigation */}
+                <div className="mt-auto border-t border-gray-100 bg-gray-50/70 p-5 space-y-4 text-xs text-gray-600">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">Platform</h4>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                      <Link href="/about" className="hover:text-gray-900 transition-colors">About Us</Link>
+                      <span className="text-gray-300">•</span>
+                      <Link href="/team" className="hover:text-gray-900 transition-colors">Our Team</Link>
+                      <span className="text-gray-300">•</span>
+                      <Link href="/careers" className="hover:text-gray-900 transition-colors">Careers</Link>
+                      <span className="text-gray-300">•</span>
+                      <Link href="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
+                    </div>
                   </div>
-                )}
 
-                {/* <div className="px-6 mt-auto mb-6">
-                  <button
-                    onClick={onLogout}
-                    className="cursor-pointer w-full px-4 py-3 bg-red-100 text-red-600 rounded-xl hover:bg-red-200 transition-all font-medium"
-                  >
-                    Logout
-                  </button>
-                </div> */}
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">Legal</h4>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                      <Link href="/privacy-policy" className="hover:text-gray-900 transition-colors">Privacy</Link>
+                      <span className="text-gray-300">•</span>
+                      <Link href="/terms-and-conditions" className="hover:text-gray-900 transition-colors">Terms</Link>
+                      <span className="text-gray-300">•</span>
+                      <Link href="/refund-policy" className="hover:text-gray-900 transition-colors">Refund</Link>
+                      <span className="text-gray-300">•</span>
+                      <Link href="/shipping-policy" className="hover:text-gray-900 transition-colors">Shipping</Link>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">Connect</h4>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                      <a href="mailto:support@kavyalok.in" className="hover:text-gray-900 transition-colors">support@kavyalok.in</a>
+                      <span className="text-gray-300">•</span>
+                      <a href="https://linkedin.com/company/kavyalok-in" target="_blank" rel="noreferrer" className="hover:text-gray-900 transition-colors">LinkedIn</a>
+                      <span className="text-gray-300">•</span>
+                      <a href="https://instagram.com/kavyalok.in" target="_blank" rel="noreferrer" className="hover:text-gray-900 transition-colors">Instagram</a>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-200/60 text-[11px] text-gray-400 text-center">
+                    © {new Date().getFullYear()} Kavyalok. All rights reserved.
+                  </div>
+                </div>
               </div>
             ) : null}
           </aside>
