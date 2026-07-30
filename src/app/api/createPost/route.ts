@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       color: color,
       lastActivityAt: new Date(),
     });
+    
 
     user.posts.push(post._id);
     await user.save();
