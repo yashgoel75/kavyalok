@@ -213,7 +213,7 @@ export default function ProfileCardModal({
 
               {/* Bio Excerpt */}
               {user.bio && (
-                <p className="text-xs opacity-85 line-clamp-2 font-normal leading-relaxed border-t border-white/10 pt-3">
+                <p className="text-xs opacity-85 line-clamp-2 font-normal leading-relaxed border-t border-white/10 pt-3 whitespace-pre-line">
                   {user.bio}
                 </p>
               )}

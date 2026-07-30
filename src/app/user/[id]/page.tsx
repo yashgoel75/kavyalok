@@ -413,8 +413,9 @@ export default function UserProfile() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                 {userData.posts.map((post) => {
                   const isPinned = pinnedPostIds.includes(post._id);
-                  const wordCount = post.content?.replace(/<[^>]*>?/gm, "").split(/\s+/).length || 0;
+                  const wordCount = post.content?.replace(/<[^>]*>?/gm, " ").split(/\s+/).filter(Boolean).length || 0;
                   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+                  const isDarkText = getTextColor(post.color || "#ffffff") !== "#ffffff";
 
                   return (
                     <motion.div
@@ -449,7 +450,7 @@ export default function UserProfile() {
                           </span>
                           <span>•</span>
                           <span className="flex items-center gap-1">
-                            <Heart size={13} className="text-rose-500 fill-rose-500" />
+                            <Heart size={13} className={isDarkText ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
                             {post.likes} Likes
                           </span>
                         </div>
@@ -546,7 +547,7 @@ export default function UserProfile() {
 
                     <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-extrabold">
                       <span className="flex items-center gap-1">
-                        <Heart size={15} className="text-rose-500 fill-rose-500" />
+                        <Heart size={15} className={getTextColor(post.color || "#ffffff") !== "#ffffff" ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
                         {post.likes} Likes
                       </span>
                       <button

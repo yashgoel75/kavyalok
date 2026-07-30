@@ -36,15 +36,34 @@ const COLOR_PRESETS = [
   { name: "Slate Minimal", value: "#1e293b", accent: "#38bdf8" },
 ];
 
-function getCleanExcerpt(htmlContent: string, maxLength = 180): string {
+function getCleanExcerpt(htmlContent: string, maxLength = 220): string {
   if (!htmlContent) return "";
-  const plainText = htmlContent.replace(/<[^>]*>?/gm, "").trim();
-  if (plainText.length <= maxLength) return plainText;
-  return plainText.substring(0, maxLength).trim() + "...";
+  let text = htmlContent
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, "\n")
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+
+  text = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength).trim() + "...";
 }
 
 function getReadingTime(htmlContent: string): number {
-  const plainText = htmlContent?.replace(/<[^>]*>?/gm, "") || "";
+  const plainText =
+    htmlContent
+      ?.replace(/<br\s*\/?>/gi, " ")
+      .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, " ")
+      .replace(/<[^>]*>?/gm, " ") || "";
   const words = plainText.trim().split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.ceil(words / 200));
 }
@@ -316,7 +335,7 @@ export default function PostCardModal({
 
                 {/* Clean Excerpt */}
                 <p
-                  className="text-xs sm:text-sm line-clamp-4 font-normal leading-relaxed opacity-90"
+                  className="text-xs sm:text-sm line-clamp-6 font-normal leading-relaxed opacity-90 whitespace-pre-line"
                   style={{ color: cardTextColor }}
                 >
                   &ldquo;{cleanExcerpt}&rdquo;
@@ -329,17 +348,24 @@ export default function PostCardModal({
               }`}>
                 <div className="space-y-1">
                   <div className="flex items-center gap-3 text-xs font-bold" style={{ color: cardTextColor }}>
-                    <span className="flex items-center gap-1 text-rose-500">
-                      <Heart size={13} className="fill-rose-500" />
-                      {post.likes || 0} Likes
+                    <span className="flex items-center gap-1">
+                      <Heart
+                        size={13}
+                        className={
+                          isDarkText
+                            ? "fill-rose-600 text-rose-600"
+                            : "fill-rose-300 text-rose-300"
+                        }
+                      />
+                      <span style={{ color: cardTextColor }}>{post.likes || 0} Likes</span>
                     </span>
                     <span>•</span>
-                    <span className="flex items-center gap-1 opacity-80" style={{ color: cardTextColor }}>
+                    <span className="flex items-center gap-1 opacity-90" style={{ color: cardTextColor }}>
                       <Clock size={13} />
                       {readingTime} min read
                     </span>
                   </div>
-                  <p className="text-[10px] font-semibold opacity-65" style={{ color: cardTextColor }}>
+                  <p className="text-[10px] font-bold opacity-90" style={{ color: cardTextColor }}>
                     Scan to read full piece
                   </p>
                 </div>

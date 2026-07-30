@@ -403,7 +403,7 @@ export default function PostPage() {
     );
   }
 
-  const wordCount = post.content?.replace(/<[^>]*>?/gm, "").split(/\s+/).length || 0;
+  const wordCount = post.content?.replace(/<[^>]*>?/gm, " ").split(/\s+/).filter(Boolean).length || 0;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
   const textColor = getTextColor(post.color || "#ffffff");
 
@@ -480,7 +480,11 @@ export default function PostPage() {
                     <button
                       onClick={handleFollowAuthor}
                       disabled={isFollowLoading}
-                      className="ml-2 px-3.5 py-1.5 rounded-xl bg-black/10 hover:bg-black/20 font-extrabold transition-all cursor-pointer flex items-center gap-1"
+                      className={`ml-2 px-3.5 py-1.5 rounded-xl font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                        textColor !== "#ffffff"
+                          ? "bg-black/10 hover:bg-black/20 text-slate-900"
+                          : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
+                      }`}
                     >
                       {isFollowLoading ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -519,7 +523,11 @@ export default function PostPage() {
                   {post.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="px-3 py-1 rounded-full bg-black/10 text-xs font-bold flex items-center gap-1"
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                        textColor !== "#ffffff"
+                          ? "bg-black/10 text-slate-900"
+                          : "bg-white/15 text-white border border-white/20"
+                      }`}
                     >
                       <Tag size={11} />
                       #{tag}
@@ -536,7 +544,9 @@ export default function PostPage() {
                     className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer ${
                       isLiked
                         ? "bg-rose-600 text-white shadow-md"
-                        : "bg-black/10 hover:bg-black/20"
+                        : textColor !== "#ffffff"
+                        ? "bg-black/10 hover:bg-black/20 text-slate-900"
+                        : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
                     }`}
                   >
                     <Heart size={16} className={isLiked ? "fill-white" : ""} />
@@ -548,7 +558,9 @@ export default function PostPage() {
                     className={`p-2.5 rounded-2xl font-extrabold transition-all active:scale-95 cursor-pointer ${
                       isBookmarked
                         ? "bg-amber-600 text-white shadow-md"
-                        : "bg-black/10 hover:bg-black/20"
+                        : textColor !== "#ffffff"
+                        ? "bg-black/10 hover:bg-black/20 text-slate-900"
+                        : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
                     }`}
                     title={isBookmarked ? "Bookmarked" : "Bookmark Post"}
                   >
@@ -567,7 +579,11 @@ export default function PostPage() {
 
                   <button
                     onClick={copyLink}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-black/10 hover:bg-black/20 text-xs font-extrabold transition-all cursor-pointer"
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-extrabold transition-all cursor-pointer ${
+                      textColor !== "#ffffff"
+                        ? "bg-black/10 hover:bg-black/20 text-slate-900"
+                        : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
+                    }`}
                   >
                     <Copy size={15} />
                     <span>{copiedLink ? "Copied!" : "Link"}</span>

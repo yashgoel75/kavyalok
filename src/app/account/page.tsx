@@ -530,8 +530,9 @@ export default function Account() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                 {userData.posts.map((post) => {
                   const isPinned = pinnedPostIds.includes(post._id);
-                  const wordCount = post.content?.replace(/<[^>]*>?/gm, "").split(/\s+/).length || 0;
+                  const wordCount = post.content?.replace(/<[^>]*>?/gm, " ").split(/\s+/).filter(Boolean).length || 0;
                   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+                  const isDarkText = getTextColor(post.color || "#ffffff") !== "#ffffff";
 
                   return (
                     <motion.div
@@ -584,7 +585,7 @@ export default function Account() {
 
                         <div className="flex items-center gap-3 text-xs opacity-80 mb-4 font-bold">
                           <span className="flex items-center gap-1">
-                            <Heart size={14} className="text-rose-500 fill-rose-500" />
+                            <Heart size={14} className={isDarkText ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
                             {post.likes} Likes
                           </span>
                         </div>
@@ -684,26 +685,33 @@ export default function Account() {
                       </button>
                     </div>
 
-                    <div className="mb-4">
-                      <h3 className="text-xl sm:text-2xl font-extrabold hover:underline mb-2">
+                    <div className="mb-5">
+                      <h3 className="text-xl sm:text-2xl font-extrabold hover:underline mb-2 leading-snug">
                         {post.title}
                       </h3>
 
+                      <div className="flex items-center gap-3 text-xs opacity-80 mb-4 font-bold">
+                        <span className="flex items-center gap-1">
+                          <Heart size={14} className={getTextColor(post.color || "#ffffff") !== "#ffffff" ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
+                          {post.likes} Likes
+                        </span>
+                      </div>
+
                       {post.picture && (
                         <div className="relative w-full h-56 rounded-2xl overflow-hidden mb-4 border border-black/10">
-                          <Image src={post.picture} alt={post.title} fill className="object-cover" />
+                          <Image src={post.picture} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                         </div>
                       )}
 
                       <div
-                        className="text-sm line-clamp-4 leading-relaxed font-normal"
+                        className="text-sm line-clamp-3 opacity-90 leading-relaxed font-normal"
                         dangerouslySetInnerHTML={{ __html: post.content }}
                       />
                     </div>
 
                     <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-extrabold">
                       <span className="flex items-center gap-1">
-                        <Heart size={15} className="text-rose-500 fill-rose-500" />
+                        <Heart size={15} className={getTextColor(post.color || "#ffffff") !== "#ffffff" ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
                         {post.likes} Likes
                       </span>
                       <button
