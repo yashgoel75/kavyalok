@@ -43,7 +43,10 @@ export async function POST(req: NextRequest) {
     }
 
     const existingRepost = await Repost.findOne({ user: user._id, post: originalPost._id });
-    const hasReposted = !!existingRepost || (user.reposts || []).includes(originalPost._id.toString());
+    const isUserInRepostedBy = originalPost.repostedBy?.some(
+      (id: any) => id.toString() === user._id.toString()
+    );
+    const hasReposted = !!existingRepost || !!isUserInRepostedBy || (user.reposts || []).includes(originalPost._id.toString());
 
     if (hasReposted) {
       // Unrepost: remove user repost record
@@ -90,7 +93,7 @@ export async function POST(req: NextRequest) {
 
       await Repost.updateOne(
         { user: user._id, post: originalPost._id },
-        { $setOnInsert: { user: user._id, post: originalPost._id, createdAt: now } },
+        { $set: { createdAt: now } },
         { upsert: true }
       );
 

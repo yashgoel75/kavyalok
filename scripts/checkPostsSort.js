@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 function loadEnv() {
-  const envPath = path.resolve(process.cwd(), ".env.local");
+  const envPath = path.resolve(process.cwd(), ".env");
   if (fs.existsSync(envPath)) {
     const envFile = fs.readFileSync(envPath, "utf8");
     envFile.split("\n").forEach((line) => {
@@ -21,17 +21,23 @@ function loadEnv() {
 
 loadEnv();
 
-const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL;
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("MONGODB_URI not found");
+  process.exit(1);
+}
 
 const PostSchema = new mongoose.Schema(
   {
     title: String,
     sortByTime: Date,
     createdAt: Date,
+    updatedAt: Date,
     repostCount: Number,
     isRepost: Boolean,
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 const Post = mongoose.models.Post || mongoose.model("Post", PostSchema);
@@ -41,22 +47,22 @@ async function check() {
     await mongoose.connect(MONGODB_URI);
     console.log("Connected to DB.");
 
-    // First: Perform explicit backfill for all existing posts that don't have sortByTime
+    // Update all posts where sortByTime is missing or null
     const updateResult = await Post.updateMany(
       { $or: [{ sortByTime: { $exists: false } }, { sortByTime: null }] },
-      [{ $set: { sortByTime: { $ifNull: ["$createdAt", "$updatedAt"] } } }]
+      [{ $set: { sortByTime: { $ifNull: ["$createdAt", new Date()] } } }]
     );
-    console.log("Update result modifiedCount:", updateResult.modifiedCount);
+    console.log("Backfill updateResult modifiedCount:", updateResult.modifiedCount);
 
     const posts = await Post.find({ isRepost: { $ne: true } })
-      .sort({ sortByTime: -1, createdAt: -1 })
+      .sort({ sortByTime: -1 })
       .limit(10)
-      .select("title sortByTime createdAt repostCount")
+      .select("title sortByTime createdAt updatedAt repostCount")
       .lean();
 
-    console.log("Top 10 posts sorted by sortByTime -1:");
+    console.log(`Top ${posts.length} posts sorted by sortByTime -1:`);
     posts.forEach((p, i) => {
-      console.log(`${i + 1}. Title: "${p.title}" | sortByTime: ${p.sortByTime} | createdAt: ${p.createdAt} | reposts: ${p.repostCount || 0}`);
+      console.log(`${i + 1}. Title: "${p.title}" | sortByTime: ${p.sortByTime?.toISOString()} | createdAt: ${p.createdAt?.toISOString()} | reposts: ${p.repostCount || 0}`);
     });
 
   } catch (err) {

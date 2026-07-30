@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { getFirebaseToken } from "@/utils";
 import { useUser, User } from "@/context/UserContext";
 
@@ -50,6 +50,7 @@ const fetchPostsPage = async ({
 
 export function useDashboard() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { firebaseUser: user, userData, loading, logout: handleLogout } = useUser();
 
   const userEmail = user?.email || userData?.email;
@@ -156,7 +157,7 @@ export function useDashboard() {
     }
   }, [userData]);
 
-  // Deduplicate and sort posts feed by latest activity (new creation or recent repost)
+  // Deduplicate and sort posts feed strictly by sortByTime
   const displayPosts = useMemo(() => {
     const postMap = new Map<string, Post>();
 
@@ -190,7 +191,7 @@ export function useDashboard() {
 
     const items = Array.from(postMap.values());
 
-    // Sort by sortByTime (repost timestamp override > sortByTime > createdAt)
+    // Sort strictly by sortByTime (repost timestamp override > sortByTime > createdAt)
     items.sort((a, b) => {
       const timeA =
         repostTimestampOverrides[a._id] ||
@@ -265,9 +266,6 @@ export function useDashboard() {
     const newStatus = !isCurrentlyReposted;
 
     setRepostedPosts((prev) => ({ ...prev, [postId]: newStatus }));
-    if (newStatus) {
-      setRepostTimestampOverrides((prev) => ({ ...prev, [postId]: Date.now() }));
-    }
 
     try {
       const token = await getFirebaseToken();
@@ -299,6 +297,9 @@ export function useDashboard() {
           [postId]: new Date(responseData.sortByTime).getTime(),
         }));
       }
+
+      // Invalidate queries so TanStack Query refetches page 1 sorted by fresh sortByTime from MongoDB!
+      queryClient.invalidateQueries({ queryKey: ["dashboard-posts"] });
     } catch (err) {
       console.error("Error reposting:", err);
       // Revert optimistic update
