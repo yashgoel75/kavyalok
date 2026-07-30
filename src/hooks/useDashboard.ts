@@ -23,6 +23,8 @@ export interface Post {
   repostedByAuthors?: User[];
   createdAt?: string;
   updatedAt?: string;
+  sortByTime?: string;
+  lastModifiedTime?: string;
   lastRepostedAt?: string;
   lastActivityAt?: string;
 }
@@ -188,16 +190,16 @@ export function useDashboard() {
 
     const items = Array.from(postMap.values());
 
-    // Sort by modified date (repost timestamp override > updatedAt > createdAt)
+    // Sort by sortByTime (repost timestamp override > sortByTime > createdAt)
     items.sort((a, b) => {
       const timeA =
         repostTimestampOverrides[a._id] ||
-        (a.updatedAt ? new Date(a.updatedAt).getTime() : 0) ||
+        (a.sortByTime ? new Date(a.sortByTime).getTime() : 0) ||
         (a.createdAt ? new Date(a.createdAt).getTime() : 0);
 
       const timeB =
         repostTimestampOverrides[b._id] ||
-        (b.updatedAt ? new Date(b.updatedAt).getTime() : 0) ||
+        (b.sortByTime ? new Date(b.sortByTime).getTime() : 0) ||
         (b.createdAt ? new Date(b.createdAt).getTime() : 0);
 
       return timeB - timeA;
@@ -291,8 +293,11 @@ export function useDashboard() {
         [postId]: responseData.repostCount,
       }));
 
-      if (responseData.isReposted) {
-        setRepostTimestampOverrides((prev) => ({ ...prev, [postId]: Date.now() }));
+      if (responseData.sortByTime) {
+        setRepostTimestampOverrides((prev) => ({
+          ...prev,
+          [postId]: new Date(responseData.sortByTime).getTime(),
+        }));
       }
     } catch (err) {
       console.error("Error reposting:", err);

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     const hasReposted = !!existingRepost || (user.reposts || []).includes(originalPost._id.toString());
 
     if (hasReposted) {
-      // Unrepost: decrement repostCount, pull user, update modified date (updatedAt)
+      // Unrepost: remove user repost record
       await Repost.deleteOne({ user: user._id, post: originalPost._id });
 
       await User.updateOne(
@@ -54,12 +54,20 @@ export async function POST(req: NextRequest) {
         { $pull: { reposts: originalPost._id.toString() } }
       );
 
+      // Find the most recent remaining repost for this post, or fallback to original createdAt
+      const latestRemainingRepost = await Repost.findOne({ post: originalPost._id }).sort({ createdAt: -1 });
+      const fallbackSortTime = latestRemainingRepost ? latestRemainingRepost.createdAt : originalPost.createdAt;
+      const now = new Date();
+
       await Post.updateOne(
         { _id: originalPost._id },
         {
           $pull: { repostedBy: user._id },
           $inc: { repostCount: -1 },
-          $set: { updatedAt: new Date() },
+          $set: {
+            sortByTime: fallbackSortTime,
+            lastModifiedTime: now,
+          },
         }
       );
 
@@ -74,12 +82,15 @@ export async function POST(req: NextRequest) {
         success: true,
         isReposted: false,
         repostCount: Math.max(0, updatedOriginal?.repostCount || 0),
+        sortByTime: updatedOriginal?.sortByTime,
       });
     } else {
-      // Repost: increment repostCount, add user, update modified date (updatedAt)
+      // Repost: update sortByTime and lastModifiedTime so post comes to top of feed
+      const now = new Date();
+
       await Repost.updateOne(
         { user: user._id, post: originalPost._id },
-        { $setOnInsert: { user: user._id, post: originalPost._id } },
+        { $setOnInsert: { user: user._id, post: originalPost._id, createdAt: now } },
         { upsert: true }
       );
 
@@ -93,7 +104,12 @@ export async function POST(req: NextRequest) {
         {
           $addToSet: { repostedBy: user._id },
           $inc: { repostCount: 1 },
-          $set: { updatedAt: new Date(), lastRepostedAt: new Date(), lastActivityAt: new Date() },
+          $set: {
+            sortByTime: now,
+            lastModifiedTime: now,
+            lastRepostedAt: now,
+            lastActivityAt: now,
+          },
         }
       );
 
@@ -115,6 +131,7 @@ export async function POST(req: NextRequest) {
         success: true,
         isReposted: true,
         repostCount: updatedOriginal?.repostCount || 1,
+        sortByTime: updatedOriginal?.sortByTime,
       });
     }
   } catch (err: any) {

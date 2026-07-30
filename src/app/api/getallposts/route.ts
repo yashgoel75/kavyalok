@@ -13,14 +13,35 @@ export async function GET(req: Request) {
 
     const skip = (page - 1) * limit;
 
+    // Fail-safe backfill: Ensure every post in MongoDB has a valid sortByTime Date
+    try {
+      const unassignedPosts = await Post.find({
+        $or: [{ sortByTime: { $exists: false } }, { sortByTime: null }]
+      })
+        .select("_id createdAt updatedAt")
+        .lean();
+
+      if (unassignedPosts.length > 0) {
+        const bulkOps = unassignedPosts.map((p: any) => ({
+          updateOne: {
+            filter: { _id: p._id },
+            update: { $set: { sortByTime: p.createdAt || p.updatedAt || new Date() } },
+          },
+        }));
+        await Post.bulkWrite(bulkOps);
+      }
+    } catch (err) {
+      console.error("Error backfilling sortByTime:", err);
+    }
+
     const baseQuery: any = { isRepost: { $ne: true } };
     if (excludeEmail) {
       baseQuery["author.email"] = { $ne: excludeEmail };
     }
 
-    const [posts, total] = await Promise.all([
+    const [rawPosts, total] = await Promise.all([
       Post.find(baseQuery)
-        .sort({ updatedAt: -1, createdAt: -1 })
+        .sort({ sortByTime: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate({
@@ -43,11 +64,18 @@ export async function GET(req: Request) {
           color: 1,
           createdAt: 1,
           updatedAt: 1,
+          sortByTime: 1,
+          lastModifiedTime: 1,
           _id: 1,
         })
         .lean(),
       Post.countDocuments(baseQuery),
     ]);
+
+    const posts = rawPosts.map((p: any) => ({
+      ...p,
+      sortByTime: p.sortByTime || p.createdAt || new Date(),
+    }));
 
     const response = {
       posts,

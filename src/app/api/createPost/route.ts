@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
+    const now = new Date();
     const post = await Post.create({
       title,
       content,
@@ -56,9 +57,9 @@ export async function POST(req: NextRequest) {
       comments: [],
       tags: tags,
       color: color,
-      lastActivityAt: new Date(),
+      sortByTime: now,
+      lastActivityAt: now,
     });
-    
 
     user.posts.push(post._id);
     await user.save();

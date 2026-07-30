@@ -121,13 +121,15 @@ const PostSchema = new Schema({
      * @deprecated Unbounded array. Use Comment.post reference for querying comments. 
      * Retained for backward compatibility during phased migration.
      */
-    comments: [{ type: Schema.Types.ObjectId, ref: "Comment" }],
     color: { type: String, required: false },
     lastRepostedAt: { type: Date, default: null, index: true },
     lastActivityAt: { type: Date, default: Date.now, index: true },
+    sortByTime: { type: Date, default: Date.now, index: true },
+    lastModifiedTime: { type: Date, default: null, index: true },
 }, { timestamps: true });
 
 PostSchema.index({ title: "text", content: "text", tags: "text" });
+PostSchema.index({ sortByTime: -1 });
 PostSchema.index({ lastActivityAt: -1 });
 PostSchema.index({ createdAt: -1 });
 PostSchema.index({ lastRepostedAt: -1, createdAt: -1 });
