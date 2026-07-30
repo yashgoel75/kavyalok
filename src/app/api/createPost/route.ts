@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       comments: [],
       tags: tags,
       color: color,
+      lastActivityAt: new Date(),
     });
 
     user.posts.push(post._id);

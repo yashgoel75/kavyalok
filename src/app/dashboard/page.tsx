@@ -19,9 +19,11 @@ export default function Dashboard() {
     fetchNextPage,
     likedPosts,
     bookmarkedPosts,
+    repostedPosts,
     handleLogout,
     toggleLike,
     toggleBookmark,
+    toggleRepost,
   } = useDashboard();
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -62,8 +64,10 @@ export default function Dashboard() {
               firebaseUser={user}
               likedPosts={likedPosts}
               bookmarkedPosts={bookmarkedPosts}
+              repostedPosts={repostedPosts}
               onLike={toggleLike}
               onBookmark={toggleBookmark}
+              onRepost={toggleRepost}
               hasMore={hasMore}
               loadingPosts={loadingPosts}
               isFetchingNextPage={isFetchingNextPage}

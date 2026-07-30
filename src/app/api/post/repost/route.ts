@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Resolve original post if target is already a repost
+    // Resolve original post ID if target happens to be an old repost doc
     const originalPostId = targetPost.isRepost && targetPost.originalPost ? targetPost.originalPost : targetPost._id;
     const originalPost = await Post.findById(originalPostId);
 
@@ -46,10 +46,9 @@ export async function POST(req: NextRequest) {
     const hasReposted = !!existingRepost || (user.reposts || []).includes(originalPost._id.toString());
 
     if (hasReposted) {
-      // Delete from Repost collection
+      // Unrepost: decrement repostCount, pull user, update modified date (updatedAt)
       await Repost.deleteOne({ user: user._id, post: originalPost._id });
 
-      // Unrepost: Dual Pull from User.reposts
       await User.updateOne(
         { email },
         { $pull: { reposts: originalPost._id.toString() } }
@@ -60,12 +59,14 @@ export async function POST(req: NextRequest) {
         {
           $pull: { repostedBy: user._id },
           $inc: { repostCount: -1 },
+          $set: { updatedAt: new Date() },
         }
       );
 
-      await Post.deleteOne({
+      // Clean up legacy auto-created repost docs if any exist
+      await Post.deleteMany({
         originalPost: originalPost._id,
-        repostedByAuthor: user._id,
+        isRepost: true,
       });
 
       const updatedOriginal = await Post.findById(originalPost._id);
@@ -75,14 +76,13 @@ export async function POST(req: NextRequest) {
         repostCount: Math.max(0, updatedOriginal?.repostCount || 0),
       });
     } else {
-      // Insert into Repost collection
+      // Repost: increment repostCount, add user, update modified date (updatedAt)
       await Repost.updateOne(
         { user: user._id, post: originalPost._id },
         { $setOnInsert: { user: user._id, post: originalPost._id } },
         { upsert: true }
       );
 
-      // Repost: Dual Add to User.reposts
       await User.updateOne(
         { email },
         { $addToSet: { reposts: originalPost._id.toString() } }
@@ -93,20 +93,14 @@ export async function POST(req: NextRequest) {
         {
           $addToSet: { repostedBy: user._id },
           $inc: { repostCount: 1 },
+          $set: { updatedAt: new Date(), lastRepostedAt: new Date(), lastActivityAt: new Date() },
         }
       );
 
-      await Post.create({
-        title: originalPost.title,
-        content: originalPost.content,
-        picture: originalPost.picture,
-        color: originalPost.color,
-        tags: originalPost.tags,
-        author: originalPost.author,
-        isRepost: true,
+      // Clean up legacy auto-created repost docs if any exist
+      await Post.deleteMany({
         originalPost: originalPost._id,
-        repostedByAuthor: user._id,
-        repostedBy: [user._id],
+        isRepost: true,
       });
 
       // Track Interaction for Recommendations

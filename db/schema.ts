@@ -123,10 +123,14 @@ const PostSchema = new Schema({
      */
     comments: [{ type: Schema.Types.ObjectId, ref: "Comment" }],
     color: { type: String, required: false },
+    lastRepostedAt: { type: Date, default: null, index: true },
+    lastActivityAt: { type: Date, default: Date.now, index: true },
 }, { timestamps: true });
 
 PostSchema.index({ title: "text", content: "text", tags: "text" });
+PostSchema.index({ lastActivityAt: -1 });
 PostSchema.index({ createdAt: -1 });
+PostSchema.index({ lastRepostedAt: -1, createdAt: -1 });
 PostSchema.index({ author: 1, createdAt: -1 });
 
 

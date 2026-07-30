@@ -16,8 +16,15 @@ export interface Post {
   likes: number;
   color: string;
   repostCount?: number;
-  repostedBy?: string[];
+  repostedBy?: any[];
   isRepost?: boolean;
+  originalPost?: string;
+  repostedByAuthor?: User;
+  repostedByAuthors?: User[];
+  createdAt?: string;
+  updatedAt?: string;
+  lastRepostedAt?: string;
+  lastActivityAt?: string;
 }
 
 const fetchPostsPage = async ({
@@ -67,23 +74,28 @@ export function useDashboard() {
     enabled: !loading,
   });
 
-  const posts = useMemo(() => {
+  const rawPosts = useMemo(() => {
     return data?.pages.flatMap((page) => page.posts) ?? [];
   }, [data]);
 
-  // Local override state for likes & bookmarks
+  // Local override state for likes, bookmarks & reposts
   const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
   const [bookmarkedPosts, setBookmarkedPosts] = useState<Record<string, boolean>>({});
+  const [repostedPosts, setRepostedPosts] = useState<Record<string, boolean>>({});
+
   const [likesOverrides, setLikesOverrides] = useState<Record<string, number>>({});
+  const [repostCountOverrides, setRepostCountOverrides] = useState<Record<string, number>>({});
+  const [repostTimestampOverrides, setRepostTimestampOverrides] = useState<Record<string, number>>({});
+
   const fetchedInteractionIdsRef = useRef<Set<string>>(new Set());
 
   // Fetch user interaction statuses (likes/bookmarks) for loaded posts
   useEffect(() => {
-    if (!user || !posts.length) return;
+    if (!user || !rawPosts.length) return;
 
     const fetchInteractions = async () => {
-      const newPostIds = posts
-        .map((p) => p._id)
+      const newPostIds = rawPosts
+        .map((p) => (p.isRepost && p.originalPost ? p.originalPost : p._id))
         .filter((id) => !fetchedInteractionIdsRef.current.has(id));
 
       if (newPostIds.length === 0) return;
@@ -127,14 +139,72 @@ export function useDashboard() {
     };
 
     fetchInteractions();
-  }, [user, posts]);
+  }, [user, rawPosts]);
 
+  // Initial user reposts map check
+  useEffect(() => {
+    if (userData && userData.reposts && Array.isArray(userData.reposts)) {
+      setRepostedPosts((prev) => {
+        const updated = { ...prev };
+        userData.reposts?.forEach((id: string) => {
+          updated[id] = true;
+        });
+        return updated;
+      });
+    }
+  }, [userData]);
+
+  // Deduplicate and sort posts feed by latest activity (new creation or recent repost)
   const displayPosts = useMemo(() => {
-    return posts.map((p) => ({
-      ...p,
-      likes: likesOverrides[p._id] !== undefined ? likesOverrides[p._id] : p.likes,
-    }));
-  }, [posts, likesOverrides]);
+    const postMap = new Map<string, Post>();
+
+    for (const post of rawPosts) {
+      const canonicalId = post.isRepost && post.originalPost ? post.originalPost : post._id;
+
+      if (!postMap.has(canonicalId)) {
+        const repostedByAuthors: User[] = [];
+        if (post.repostedBy && Array.isArray(post.repostedBy)) {
+          post.repostedBy.forEach((u: any) => {
+            if (typeof u === "object" && u.username) repostedByAuthors.push(u);
+          });
+        }
+        if (post.isRepost && post.repostedByAuthor) {
+          const exists = repostedByAuthors.some((u) => u.username === post.repostedByAuthor?.username);
+          if (!exists) repostedByAuthors.push(post.repostedByAuthor);
+        }
+
+        postMap.set(canonicalId, {
+          ...post,
+          _id: canonicalId,
+          repostedByAuthors,
+          likes: likesOverrides[canonicalId] !== undefined ? likesOverrides[canonicalId] : post.likes,
+          repostCount:
+            repostCountOverrides[canonicalId] !== undefined
+              ? repostCountOverrides[canonicalId]
+              : post.repostCount || 0,
+        });
+      }
+    }
+
+    const items = Array.from(postMap.values());
+
+    // Sort by modified date (repost timestamp override > updatedAt > createdAt)
+    items.sort((a, b) => {
+      const timeA =
+        repostTimestampOverrides[a._id] ||
+        (a.updatedAt ? new Date(a.updatedAt).getTime() : 0) ||
+        (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+
+      const timeB =
+        repostTimestampOverrides[b._id] ||
+        (b.updatedAt ? new Date(b.updatedAt).getTime() : 0) ||
+        (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+
+      return timeB - timeA;
+    });
+
+    return items;
+  }, [rawPosts, likesOverrides, repostCountOverrides, repostTimestampOverrides]);
 
   const toggleLike = async (postId: string) => {
     if (!user) return;
@@ -186,6 +256,51 @@ export function useDashboard() {
     }
   };
 
+  const toggleRepost = async (postId: string) => {
+    if (!user) return;
+
+    const isCurrentlyReposted = !!repostedPosts[postId];
+    const newStatus = !isCurrentlyReposted;
+
+    setRepostedPosts((prev) => ({ ...prev, [postId]: newStatus }));
+    if (newStatus) {
+      setRepostTimestampOverrides((prev) => ({ ...prev, [postId]: Date.now() }));
+    }
+
+    try {
+      const token = await getFirebaseToken();
+      const res = await fetch(`/api/post/repost`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ postId, email: user.email }),
+      });
+
+      const responseData = await res.json();
+      if (!res.ok) throw new Error(responseData.error || "Failed to repost");
+
+      setRepostedPosts((prev) => ({
+        ...prev,
+        [postId]: responseData.isReposted,
+      }));
+
+      setRepostCountOverrides((prev) => ({
+        ...prev,
+        [postId]: responseData.repostCount,
+      }));
+
+      if (responseData.isReposted) {
+        setRepostTimestampOverrides((prev) => ({ ...prev, [postId]: Date.now() }));
+      }
+    } catch (err) {
+      console.error("Error reposting:", err);
+      // Revert optimistic update
+      setRepostedPosts((prev) => ({ ...prev, [postId]: isCurrentlyReposted }));
+    }
+  };
+
   return {
     user,
     userData,
@@ -197,8 +312,10 @@ export function useDashboard() {
     fetchNextPage,
     likedPosts,
     bookmarkedPosts,
+    repostedPosts,
     handleLogout,
     toggleLike,
     toggleBookmark,
+    toggleRepost,
   };
 }

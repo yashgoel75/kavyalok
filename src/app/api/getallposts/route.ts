@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { User, Post } from "../../../../db/schema";
 import { register } from "@/instrumentation";
-import redis from "@/lib/redis";
 
 export async function GET(req: Request) {
   try {
@@ -13,28 +12,24 @@ export async function GET(req: Request) {
     const excludeEmail = searchParams.get("excludeEmail");
 
     const skip = (page - 1) * limit;
-    const cacheKey = `posts:page:${page}:limit:${limit}:${excludeEmail || ""}`;
 
-    // Check cache
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return NextResponse.json(cached);
-      }
-    } catch (err) {
-      console.error("Redis get error:", err);
+    const baseQuery: any = { isRepost: { $ne: true } };
+    if (excludeEmail) {
+      baseQuery["author.email"] = { $ne: excludeEmail };
     }
 
-    const query = excludeEmail ? { "author.email": { $ne: excludeEmail } } : {};
-
     const [posts, total] = await Promise.all([
-      Post.find(query)
-        .sort({ createdAt: -1 })
+      Post.find(baseQuery)
+        .sort({ updatedAt: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate({
           path: "author",
           select: "name username profilePicture isVerified email",
+        })
+        .populate({
+          path: "repostedBy",
+          select: "name username profilePicture isVerified",
         })
         .select({
           title: 1,
@@ -42,13 +37,16 @@ export async function GET(req: Request) {
           picture: 1,
           author: 1,
           likes: 1,
+          repostCount: 1,
+          repostedBy: 1,
           comments: 1,
           color: 1,
           createdAt: 1,
+          updatedAt: 1,
           _id: 1,
         })
         .lean(),
-      Post.estimatedDocumentCount(),
+      Post.countDocuments(baseQuery),
     ]);
 
     const response = {
@@ -56,13 +54,6 @@ export async function GET(req: Request) {
       total,
       hasMore: skip + limit < total,
     };
-
-    // Cache result (2 min)
-    try {
-      await redis.set(cacheKey, response, { ex: 120 });
-    } catch (err) {
-      console.error("Redis set error:", err);
-    }
 
     return NextResponse.json(response);
   } catch (error: any) {

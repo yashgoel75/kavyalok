@@ -1,11 +1,11 @@
 "use client";
+
 import React, { useState } from "react";
-import { Check, MessageCircle, Send, Repeat2 } from "lucide-react";
+import { Check, MessageCircle, Send, Repeat2, Bookmark } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { getCommentColor } from "@/lib/utils";
 import { User } from "@/context/UserContext";
+import { getTextColor, getIconColor, getCommentColor, getRepostColor, getBookmarkColor } from "@/lib/utils";
 
 interface Post {
   _id: string;
@@ -17,10 +17,11 @@ interface Post {
   comments: [string];
   color: string;
   repostCount?: number;
-  repostedBy?: string[];
+  repostedBy?: any[];
   isRepost?: boolean;
   originalPost?: string;
   repostedByAuthor?: User;
+  repostedByAuthors?: User[];
 }
 
 interface PostCardProps {
@@ -39,6 +40,7 @@ interface PostCardProps {
   getCommentColor: (color: string) => string;
   getInitials: (name: string) => string;
   router: AppRouterInstance;
+  onOpenInteractions?: (tab: "likes" | "reposts" | "comments", postId: string, title: string) => void;
 }
 
 export default React.memo(function PostCard({
@@ -52,13 +54,12 @@ export default React.memo(function PostCard({
   handleLike,
   handleBookmark,
   handleRepost,
-  getTextColor,
-  getIconColor,
   getInitials,
   router,
+  onOpenInteractions,
 }: PostCardProps) {
   const [showShareOptions, setShowShareOptions] = useState(false);
-  const readingTime = Math.ceil(post.content.split(" ").length / 200);
+  const readingTime = Math.ceil((post.content || "").split(" ").length / 200);
 
   const activeColor =
     defaultPostColor && defaultPostColor !== "null"
@@ -66,6 +67,11 @@ export default React.memo(function PostCard({
       : post.color || "#ffffff";
 
   const [copied, setCopied] = useState(false);
+  const [heartAnim, setHeartAnim] = useState(false);
+
+  const isLiked = !!likedPosts[post._id];
+  const isBookmarked = !!bookmarkedPosts[post._id];
+  const isRepostedByUser = !!repostedPosts[post._id];
 
   const getBackgroundColor = (textColor: string) =>
     textColor === "#000000" ? "#ffffff" : "#000000";
@@ -80,7 +86,6 @@ export default React.memo(function PostCard({
       );
     } else if (platform === "copy") {
       navigator.clipboard.writeText(postUrl);
-
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -88,237 +93,337 @@ export default React.memo(function PostCard({
     setShowShareOptions(false);
   };
 
-  const isRepostedByUser = !!repostedPosts[post._id];
+  const triggerLikeWithAnim = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!firebaseUser) return;
+    setHeartAnim(true);
+    setTimeout(() => setHeartAnim(false), 300);
+    handleLike(post._id);
+  };
+
+  const hasReposts =
+    (post.repostedBy && post.repostedBy.length > 0) ||
+    (post.repostedByAuthors && post.repostedByAuthors.length > 0) ||
+    post.repostedByAuthor;
+
+  const topReposterName =
+    post.repostedByAuthor?.username ||
+    post.repostedByAuthors?.[0]?.username ||
+    (typeof post.repostedBy?.[0] === "object" ? (post.repostedBy[0] as any).username : null) ||
+    "writer";
+
+  const totalReposters = post.repostCount || post.repostedByAuthors?.length || (hasReposts ? 1 : 0);
+
+  const textColor = getTextColor(activeColor);
+  const isWhiteText = textColor === "#ffffff";
+
+  const heartColor = getIconColor(activeColor, isLiked);
+  const commentColor = getCommentColor(activeColor);
+  const repostColor = getRepostColor(activeColor, isRepostedByUser);
+  const bookmarkColor = getBookmarkColor(activeColor, isBookmarked);
 
   return (
     <div
       key={post._id}
       style={{
         backgroundColor: activeColor,
-        color: getTextColor(activeColor),
+        color: textColor,
       }}
       onClick={() => {
-        showShareOptions ? setShowShareOptions(false) : null;
+        if (showShareOptions) setShowShareOptions(false);
       }}
-      className="bg-white relative p-5 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col"
+      className="bg-white relative p-5 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col justify-between border border-black/5"
     >
-      {/* Repost Header Indicator */}
-      {post.isRepost && (
-        <div className="flex items-center gap-1.5 text-xs font-extrabold opacity-75 mb-3 border-b border-black/10 pb-2">
-          <Repeat2 size={13} className="text-emerald-600" />
-          <span>Reposted by @{post.repostedByAuthor?.username || "writer"}</span>
-        </div>
-      )}
+      <div>
+        {/* Adaptive High Contrast Repost Header Badge */}
+        {hasReposts && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenInteractions?.("reposts", post._id, post.title);
+            }}
+            className={`flex items-center gap-2 text-xs font-bold mb-3.5 px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+              isWhiteText
+                ? "bg-white/20 text-white border-white/30 hover:bg-white/30"
+                : "bg-emerald-50 text-emerald-950 border-emerald-200 hover:bg-emerald-100/80"
+            }`}
+            title="View who reposted this"
+          >
+            <div
+              className={`p-1 rounded-full flex items-center justify-center ${
+                isWhiteText ? "bg-white/30 text-white" : "bg-emerald-600 text-white"
+              }`}
+            >
+              <Repeat2 size={12} className="stroke-[2.5]" />
+            </div>
+            <span className="truncate">
+              Reposted by <span className="font-extrabold">@{topReposterName}</span>
+              {totalReposters > 1 ? ` & ${totalReposters - 1} other${totalReposters - 1 > 1 ? "s" : ""}` : ""}
+            </span>
+          </div>
+        )}
 
-      <div className="flex items-center justify-between mb-3">
+        {/* Author Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div
+            className="flex items-center gap-3 cursor-pointer"
+            onClick={() => {
+              showShareOptions
+                ? setShowShareOptions(false)
+                : router.push(`/user/${post.author.username}`);
+            }}
+          >
+            {post.author.profilePicture ? (
+              <div className="relative">
+                <Image
+                  loading="lazy"
+                  src={post.author.profilePicture}
+                  alt={post.author.name}
+                  width={40}
+                  height={40}
+                  className={`rounded-full object-cover w-10 h-10 ${
+                    String(post.author.isVerified) === "true"
+                      ? isWhiteText
+                        ? "border-2 border-white"
+                        : "border-2 border-emerald-600"
+                      : ""
+                  }`}
+                />
+
+                {post.author.isVerified && (
+                  <div
+                    title="Verified"
+                    className={`absolute -bottom-0.5 -right-1 rounded-full p-0.5 flex items-center justify-center ${
+                      isWhiteText ? "bg-white text-black" : "bg-emerald-600 text-white"
+                    }`}
+                  >
+                    <Check size={10} strokeWidth={3} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-sm">
+                {getInitials(post.author.name)}
+              </div>
+            )}
+            <div>
+              <span className="font-extrabold text-sm block leading-tight">{post.author.name}</span>
+              <span className="text-[11px] opacity-75 block font-medium">@{post.author.username}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card Body */}
         <div
-          className="flex items-center gap-3 cursor-pointer"
+          className="flex-grow cursor-pointer"
           onClick={() => {
             showShareOptions
               ? setShowShareOptions(false)
-              : router.push(`/user/${post.author.username}`);
+              : router.push(`/post/${post._id}`);
           }}
         >
-          {post.author.profilePicture ? (
-            <div className="relative">
+          <h4 className="text-xl font-bold mb-1.5 leading-snug">{post.title}</h4>
+          <span className="text-[11px] mb-2 block font-medium opacity-75">{readingTime} min read</span>
+          <p
+            className="text-sm mb-3 leading-relaxed font-normal opacity-90"
+            dangerouslySetInnerHTML={{
+              __html:
+                post.content?.length > 120
+                  ? post.content.slice(0, 120) + "..."
+                  : post.content,
+            }}
+          ></p>
+
+          {post.picture && (
+            <div className="relative w-full h-48 mb-3 rounded-xl overflow-hidden shadow-xs border border-black/5">
               <Image
                 loading="lazy"
-                src={post.author.profilePicture}
-                alt={post.author.name}
-                width={40}
-                height={40}
-                className={`rounded-full object-cover w-11 h-11 ${
-                  String(post.author.isVerified) == "true"
-                    ? "border-2 border-green-700"
-                    : ""
-                }`}
+                src={post.picture}
+                alt="Post image"
+                fill
+                className="object-cover"
               />
-
-              {post.author.isVerified && (
-                <div
-                  title="Verified"
-                  className="absolute bottom-0 -right-1 bg-green-700 rounded-full p-1 flex items-center justify-center"
-                >
-                  <Check color="white" size={12} />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 font-semibold text-sm">
-              {getInitials(post.author.name)}
             </div>
           )}
-          <span className="font-medium">{post.author.name}</span>
         </div>
       </div>
 
-      <div
-        className="flex-grow cursor-pointer"
-        onClick={() => {
-          showShareOptions
-            ? setShowShareOptions(false)
-            : router.push(`/post/${post._id}`);
-        }}
-      >
-        <h4 className="text-xl font-semibold mb-2">{post.title}</h4>
-        <span className="text-xs mb-2 block">{readingTime} min read</span>
-        <p
-          className="text-sm mb-3 leading-relaxed"
-          dangerouslySetInnerHTML={{
-            __html:
-              post.content?.length > 120
-                ? post.content.slice(0, 120) + "..."
-                : post.content,
-          }}
-        ></p>
-
-        {post.picture && (
-          <div className="relative w-full h-48 mb-3 rounded-md overflow-hidden">
-            <Image
-              loading="lazy"
-              src={post.picture}
-              alt="Post image"
-              fill
-              className="object-cover"
-            />
-          </div>
-        )}
-      </div>
-
+      {/* High Quality Action Bar with High Contrast Matching */}
       <div
         className="flex items-center justify-between w-full mt-4 pt-3 border-t text-sm"
         style={{
-          borderColor: getTextColor(activeColor) + "20",
+          borderColor: isWhiteText ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.1)",
         }}
       >
-        <div className="flex gap-3 items-center">
-          {/* Like Button */}
-          <button
-            onClick={() => handleLike(post._id)}
-            disabled={!firebaseUser}
-            className="flex items-center gap-1.5 transition-transform hover:scale-110 disabled:cursor-not-allowed cursor-pointer"
-            style={{
-              color: getIconColor(activeColor, likedPosts[post._id]),
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill={
-                likedPosts[post._id]
-                  ? getIconColor(activeColor, true)
-                  : "none"
-              }
-              stroke={getIconColor(activeColor, likedPosts[post._id])}
-              strokeWidth="1.5"
-              className="h-5 w-5 transition-all duration-200"
+        {/* Left Action Buttons */}
+        <div className="flex items-center gap-5 sm:gap-6">
+          {/* 1. Like Button */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={triggerLikeWithAnim}
+              disabled={!firebaseUser}
+              className={`transition-all duration-200 active:scale-75 disabled:cursor-not-allowed cursor-pointer ${
+                heartAnim ? "scale-125" : "hover:scale-110"
+              }`}
+              title={isLiked ? "Unlike" : "Like"}
             >
-              <path
-                fillRule="evenodd"
-                d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span className="text-xs font-bold">{post.likes}</span>
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill={isLiked ? heartColor : "none"}
+                stroke={heartColor}
+                strokeWidth="1.8"
+                className="h-5 w-5 transition-colors duration-200"
+              >
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+            </button>
 
-          {/* Comment Count */}
-          <div className="flex items-center gap-1">
-            <MessageCircle
-              color={getCommentColor(activeColor)}
-              size={17}
-              strokeWidth="1.5"
-            />
-            <span
-              style={{ color: getCommentColor(activeColor) }}
-              className="text-xs font-bold"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenInteractions?.("likes", post._id, post.title);
+              }}
+              className="text-xs font-bold hover:underline cursor-pointer"
+              style={{ color: textColor }}
+              title="See who liked"
             >
-              {post.comments?.length || 0}
-            </span>
+              {post.likes || 0}
+            </button>
           </div>
 
-          {/* Repost Button */}
-          {handleRepost && (
+          {/* 2. Comment Button */}
+          <div className="flex items-center gap-1.5">
             <button
-              onClick={() => handleRepost(post._id)}
-              disabled={!firebaseUser}
-              className={`flex items-center gap-1 transition-transform hover:scale-110 disabled:cursor-not-allowed cursor-pointer ${
-                isRepostedByUser ? "text-emerald-600 font-extrabold" : ""
-              }`}
-              title={isRepostedByUser ? "Undo Repost" : "Repost"}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenInteractions?.("comments", post._id, post.title);
+              }}
+              className="hover:scale-110 transition-transform active:scale-90 cursor-pointer"
+              title="Comments"
             >
-              <Repeat2
-                size={17}
-                strokeWidth={isRepostedByUser ? 2.5 : 1.5}
-                className={isRepostedByUser ? "text-emerald-600" : ""}
+              <MessageCircle
+                color={commentColor}
+                size={19}
+                strokeWidth="1.8"
               />
-              <span className="text-xs font-bold">{post.repostCount || 0}</span>
             </button>
-          )}
 
-          {/* Bookmark Button */}
-          <button
-            onClick={() => handleBookmark(post._id)}
-            disabled={!firebaseUser}
-            className={`flex items-center hover:scale-110 transition-transform disabled:cursor-not-allowed cursor-pointer ${
-              bookmarkedPosts[post._id] ? "text-yellow-500" : ""
-            }`}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4"
-              viewBox="0 0 20 20"
-              fill={bookmarkedPosts[post._id] ? "currentColor" : "none"}
-              stroke={
-                bookmarkedPosts[post._id]
-                  ? "currentColor"
-                  : getCommentColor(activeColor)
-              }
-              strokeWidth="1.5"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenInteractions?.("comments", post._id, post.title);
+              }}
+              className="text-xs font-bold hover:underline cursor-pointer"
+              style={{ color: textColor }}
+              title="See comments"
             >
-              <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
-            </svg>
-          </button>
+              {post.comments?.length || 0}
+            </button>
+          </div>
+
+          {/* 3. Repost Button */}
+          {handleRepost && (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRepost(post._id);
+                }}
+                disabled={!firebaseUser}
+                className="hover:scale-110 transition-transform active:scale-90 disabled:cursor-not-allowed cursor-pointer"
+                title={isRepostedByUser ? "Undo Repost" : "Repost"}
+              >
+                <Repeat2
+                  size={19}
+                  strokeWidth={isRepostedByUser ? 2.5 : 1.8}
+                  color={repostColor}
+                />
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenInteractions?.("reposts", post._id, post.title);
+                }}
+                className={`text-xs font-bold hover:underline cursor-pointer ${
+                  isRepostedByUser ? "font-extrabold" : ""
+                }`}
+                style={{ color: isRepostedByUser ? repostColor : textColor }}
+                title="See who reposted"
+              >
+                {post.repostCount || 0}
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center relative">
+        {/* Right Action Buttons: Bookmark & Share */}
+        <div className="flex items-center gap-4">
+          {/* 4. Bookmark Button */}
           <button
-            onClick={() => setShowShareOptions(!showShareOptions)}
-            className="hover:scale-110 transition-transform cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleBookmark(post._id);
+            }}
+            disabled={!firebaseUser}
+            className="hover:scale-110 transition-transform active:scale-90 disabled:cursor-not-allowed cursor-pointer"
+            title={isBookmarked ? "Remove Bookmark" : "Bookmark"}
           >
-            <Send className="h-5 w-5" />
+            <Bookmark
+              size={18}
+              strokeWidth="1.8"
+              fill={isBookmarked ? bookmarkColor : "none"}
+              color={bookmarkColor}
+            />
           </button>
 
-          {showShareOptions && (
-            <div
-              className="absolute bottom-10 right-0 w-36 rounded-xl shadow-xl p-1 flex flex-col gap-2 text-sm animate-fadeIn z-50"
-              style={{
-                backgroundColor: getTextColor(activeColor),
-                color: getBackgroundColor(
-                  getTextColor(activeColor)
-                ),
+          {/* 5. Share Button */}
+          <div className="relative flex items-center">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowShareOptions(!showShareOptions);
               }}
+              className="hover:scale-110 transition-transform active:scale-90 cursor-pointer"
+              title="Share"
             >
-              <button
-                className="py-1 px-2 rounded-md hover:bg-black/10 transition"
-                onClick={() => handleShare("whatsapp")}
-              >
-                WhatsApp
-              </button>
+              <Send
+                size={18}
+                strokeWidth="1.8"
+                color={commentColor}
+              />
+            </button>
 
-              <button
-                className="py-1 px-2 rounded-md hover:bg-black/10 transition"
-                onClick={() => handleShare("copy")}
+            {showShareOptions && (
+              <div
+                className="absolute bottom-9 right-0 w-36 rounded-2xl shadow-xl p-1.5 flex flex-col gap-1 text-xs font-bold animate-fadeIn z-50 border border-black/10"
+                style={{
+                  backgroundColor: textColor,
+                  color: getBackgroundColor(textColor),
+                }}
               >
-                Copy Link
-              </button>
-            </div>
-          )}
-          {copied && (
-            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-black text-white text-xs py-1 px-3 rounded-full shadow-lg animate-fadeIn z-50">
-              Copied!
-            </div>
-          )}
+                <button
+                  className="py-1.5 px-2.5 rounded-xl hover:bg-black/10 transition text-left cursor-pointer"
+                  onClick={() => handleShare("whatsapp")}
+                >
+                  WhatsApp
+                </button>
+
+                <button
+                  className="py-1.5 px-2.5 rounded-xl hover:bg-black/10 transition text-left cursor-pointer"
+                  onClick={() => handleShare("copy")}
+                >
+                  Copy Link
+                </button>
+              </div>
+            )}
+            {copied && (
+              <div className="absolute bottom-9 left-1/2 -translate-x-1/2 bg-black text-white text-[11px] font-bold py-1 px-3 rounded-full shadow-lg animate-fadeIn z-50 whitespace-nowrap">
+                Copied!
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

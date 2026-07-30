@@ -4,9 +4,9 @@ import { User, Post } from "@/hooks/useDashboard";
 import { useRouter } from "next/navigation";
 import { getTextColor, getIconColor, getCommentColor } from "@/lib/utils";
 import { User as FirebaseUser } from "firebase/auth";
-import Link from "next/link";
 import { Loader2, Feather } from "lucide-react";
 import CreatePostModal from "@/components/post/CreatePostModal";
+import PostInteractionsModal from "./PostInteractionsModal";
 
 interface FeedProps {
   posts: Post[] | null;
@@ -14,8 +14,10 @@ interface FeedProps {
   firebaseUser: FirebaseUser;
   likedPosts: Record<string, boolean>;
   bookmarkedPosts: Record<string, boolean>;
+  repostedPosts?: Record<string, boolean>;
   onLike: (id: string) => void;
   onBookmark: (id: string) => void;
+  onRepost?: (id: string) => void;
   onLoadMore: () => void;
   hasMore: boolean;
   loadingPosts: boolean;
@@ -28,8 +30,10 @@ export default function PostFeed({
   firebaseUser,
   likedPosts,
   bookmarkedPosts,
+  repostedPosts = {},
   onLike,
   onBookmark,
+  onRepost,
   onLoadMore,
   hasMore,
   loadingPosts,
@@ -37,6 +41,18 @@ export default function PostFeed({
 }: FeedProps) {
   const [filter, setFilter] = useState<"ALL" | "FRIENDS">("ALL");
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [interactionsModal, setInteractionsModal] = useState<{
+    isOpen: boolean;
+    postId: string;
+    postTitle: string;
+    initialTab: "likes" | "reposts" | "comments";
+  }>({
+    isOpen: false,
+    postId: "",
+    postTitle: "",
+    initialTab: "reposts",
+  });
+
   const router = useRouter();
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -77,12 +93,25 @@ export default function PostFeed({
     return () => observer.disconnect();
   }, [hasMore, isFetchingNextPage, loadingPosts, onLoadMore]);
 
+  const handleOpenInteractions = (
+    tab: "likes" | "reposts" | "comments",
+    postId: string,
+    title: string
+  ) => {
+    setInteractionsModal({
+      isOpen: true,
+      postId,
+      postTitle: title,
+      initialTab: tab,
+    });
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6 font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">
-            Welcome back, {userData?.name || "Writer"} 👋
+            Welcome back, {userData?.name || "Writer"}
           </h1>
           <p className="text-gray-600 font-medium text-sm">
             Discover creative writing, poetry, and stories from the community.
@@ -98,13 +127,6 @@ export default function PostFeed({
           <span>New Post</span>
         </button>
       </div>
-
-      {/* Restored Exact Original Instagram Banner */}
-      <Link target="_blank" href="https://instagram.com/kavyalok.in">
-        <div className="flex cursor-pointer justify-center mb-5 py-2.5 items-center gap-3 text-[20px] md:text-[30px] font-bold text-white bg-gradient-to-tr rounded-lg from-yellow-400 to-yellow-800 shadow-xs hover:opacity-95 transition-opacity">
-          <div className="custom-class">Follow Kavyalok on Instagram</div>
-        </div>
-      </Link>
 
       {/* Navigation Filter Tabs */}
       <div className="flex items-center gap-2 mb-6 border-b border-gray-100 pb-3">
@@ -171,13 +193,16 @@ export default function PostFeed({
               userData={userData}
               likedPosts={likedPosts}
               bookmarkedPosts={bookmarkedPosts}
+              repostedPosts={repostedPosts}
               handleLike={onLike}
               handleBookmark={onBookmark}
+              handleRepost={onRepost}
               getTextColor={getTextColor}
               getIconColor={getIconColor}
               getCommentColor={getCommentColor}
               getInitials={getInitials}
               router={router}
+              onOpenInteractions={handleOpenInteractions}
             />
           ))
         ) : (
@@ -206,6 +231,17 @@ export default function PostFeed({
         isOpen={isCreatePostOpen}
         onClose={() => setIsCreatePostOpen(false)}
         firebaseUser={firebaseUser}
+      />
+
+      {/* Post Interactions List Breakdown Modal */}
+      <PostInteractionsModal
+        isOpen={interactionsModal.isOpen}
+        onClose={() =>
+          setInteractionsModal((prev) => ({ ...prev, isOpen: false }))
+        }
+        postId={interactionsModal.postId}
+        postTitle={interactionsModal.postTitle}
+        initialTab={interactionsModal.initialTab}
       />
     </div>
   );

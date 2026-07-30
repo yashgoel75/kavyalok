@@ -35,6 +35,7 @@ export interface User {
   profilePicture?: string;
   posts?: UserPost[];
   pinnedPosts?: string[];
+  reposts?: string[];
   instagram?: string;
   snapchat?: string;
   twitter?: string;

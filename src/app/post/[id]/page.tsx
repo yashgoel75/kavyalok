@@ -22,12 +22,12 @@ import {
   UserPlus,
   Loader2,
   Tag,
-  Eye,
   Copy,
+  Repeat2,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseToken } from "@/utils";
 import PostCardModal from "@/components/post/PostCardModal";
+import PostInteractionsModal from "@/components/dashboard/PostInteractionsModal";
 
 interface Author {
   _id: string;
@@ -56,6 +56,8 @@ interface Post {
   author: Author;
   tags: string[];
   likes: number;
+  repostCount?: number;
+  repostedBy?: Author[];
   color: string;
   createdAt: string;
   updatedAt: string;
@@ -74,6 +76,7 @@ export default function PostPage() {
   const [organizedComments, setOrganizedComments] = useState<Comment[]>([]);
   const [isLiked, setIsLiked] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isReposted, setIsReposted] = useState(false);
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
 
@@ -83,6 +86,14 @@ export default function PostPage() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isPostCardOpen, setIsPostCardOpen] = useState(false);
+
+  const [interactionsModal, setInteractionsModal] = useState<{
+    isOpen: boolean;
+    initialTab: "likes" | "reposts" | "comments";
+  }>({
+    isOpen: false,
+    initialTab: "reposts",
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => setFirebaseUser(user));
@@ -128,7 +139,7 @@ export default function PostPage() {
       setOrganizedComments(organizeComments(mergedPost.comments));
 
       if (firebaseUser?.email) {
-        checkUserInteractions(id, firebaseUser.email);
+        checkUserInteractions(id, firebaseUser.email, mergedPost.repostedBy);
         if (mergedPost.author?.email) {
           checkAuthorFollowStatus(mergedPost.author.email, firebaseUser.email);
         }
@@ -140,7 +151,7 @@ export default function PostPage() {
     }
   };
 
-  const checkUserInteractions = async (postId: string, email: string) => {
+  const checkUserInteractions = async (postId: string, email: string, repostedBy?: Author[]) => {
     try {
       const token = await getFirebaseToken();
       const res = await fetch(
@@ -157,6 +168,13 @@ export default function PostPage() {
       if (res.ok) {
         setIsLiked(data.likes.includes(postId));
         setIsBookmarked(data.bookmarks.includes(postId));
+      }
+
+      if (repostedBy && Array.isArray(repostedBy)) {
+        const hasUserReposted = repostedBy.some(
+          (u) => u.email === email || u.username === firebaseUser?.displayName
+        );
+        setIsReposted(hasUserReposted);
       }
     } catch (e) {
       console.error(e);
@@ -251,6 +269,45 @@ export default function PostPage() {
     } catch (e) {
       console.error(e);
       setIsBookmarked((prev) => !prev);
+    }
+  };
+
+  const handleRepost = async () => {
+    if (!firebaseUser || !post) return;
+
+    const currentStatus = isReposted;
+    setIsReposted(!currentStatus);
+    setPost((prev) =>
+      prev
+        ? {
+            ...prev,
+            repostCount: currentStatus
+              ? Math.max(0, (prev.repostCount || 1) - 1)
+              : (prev.repostCount || 0) + 1,
+          }
+        : prev
+    );
+
+    try {
+      const token = await getFirebaseToken();
+      const res = await fetch("/api/post/repost", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ postId: post._id, email: firebaseUser.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setIsReposted(data.isReposted);
+      setPost((prev) =>
+        prev ? { ...prev, repostCount: data.repostCount } : prev
+      );
+    } catch (e) {
+      console.error(e);
+      setIsReposted(currentStatus);
     }
   };
 
@@ -407,6 +464,8 @@ export default function PostPage() {
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
   const textColor = getTextColor(post.color || "#ffffff");
 
+  const hasReposts = post.repostedBy && post.repostedBy.length > 0;
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-between font-sans selection:bg-slate-900 selection:text-white">
       <Header />
@@ -430,6 +489,24 @@ export default function PostPage() {
               style={{ backgroundColor: post.color || "#ffffff", color: textColor }}
               className="rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200/80 space-y-6 transition-all"
             >
+              {/* Repost Header Indicator */}
+              {hasReposts && (
+                <div
+                  onClick={() =>
+                    setInteractionsModal({ isOpen: true, initialTab: "reposts" })
+                  }
+                  className="flex items-center gap-2 text-xs font-bold opacity-85 pb-3 border-b border-black/10 cursor-pointer hover:opacity-100 transition-opacity"
+                >
+                  <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-600">
+                    <Repeat2 size={13} className="stroke-[2.5]" />
+                  </div>
+                  <span>
+                    Reposted by <span className="font-extrabold">@{post.repostedBy![0]?.username}</span>
+                    {post.repostedBy!.length > 1 ? ` and ${post.repostedBy!.length - 1} others` : ""}
+                  </span>
+                </div>
+              )}
+
               {/* Post Title */}
               <h1 className="text-2xl sm:text-4xl font-extrabold leading-tight tracking-tight">
                 {post.title}
@@ -536,23 +613,52 @@ export default function PostPage() {
                 </div>
               )}
 
-              {/* Interactive Actions */}
-              <div className="flex items-center justify-between pt-4 border-t border-black/10">
+              {/* Interactive Actions Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-black/10">
                 <div className="flex items-center gap-3">
+                  {/* Like Button */}
                   <button
                     onClick={handleLike}
                     className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer ${
                       isLiked
-                        ? "bg-rose-600 text-white shadow-md"
+                        ? textColor === "#ffffff"
+                          ? "bg-white text-slate-900 shadow-md"
+                          : "bg-rose-600 text-white shadow-md"
                         : textColor !== "#ffffff"
                         ? "bg-black/10 hover:bg-black/20 text-slate-900"
                         : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
                     }`}
                   >
-                    <Heart size={16} className={isLiked ? "fill-white" : ""} />
-                    <span>{post.likes} Likes</span>
+                    <Heart
+                      size={16}
+                      className={
+                        isLiked
+                          ? textColor === "#ffffff"
+                            ? "fill-slate-900 text-slate-900"
+                            : "fill-white text-white"
+                          : ""
+                      }
+                    />
+                    <span>{post.likes || 0}</span>
                   </button>
 
+                  {/* Repost Button */}
+                  <button
+                    onClick={handleRepost}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer ${
+                      isReposted
+                        ? "bg-emerald-600 text-white shadow-md"
+                        : textColor !== "#ffffff"
+                        ? "bg-black/10 hover:bg-black/20 text-slate-900"
+                        : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
+                    }`}
+                    title={isReposted ? "Undo Repost" : "Repost Piece"}
+                  >
+                    <Repeat2 size={16} className={isReposted ? "stroke-[2.5]" : ""} />
+                    <span>{post.repostCount || 0}</span>
+                  </button>
+
+                  {/* Bookmark Button */}
                   <button
                     onClick={handleBookmark}
                     className={`p-2.5 rounded-2xl font-extrabold transition-all active:scale-95 cursor-pointer ${
@@ -569,6 +675,16 @@ export default function PostPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setInteractionsModal({ isOpen: true, initialTab: "reposts" })
+                    }
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-black/10 hover:bg-black/20 text-xs font-extrabold transition-all cursor-pointer"
+                    title="View all interactions"
+                  >
+                    <span>Interactions</span>
+                  </button>
+
                   <button
                     onClick={() => setIsPostCardOpen(true)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-slate-900 text-white text-xs font-extrabold transition-all active:scale-95 cursor-pointer shadow-md hover:bg-slate-800"
@@ -597,7 +713,12 @@ export default function PostPage() {
           <div className="lg:col-span-3 space-y-6">
             <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-lg space-y-5 lg:sticky lg:top-20">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2 font-extrabold text-slate-900 text-base">
+                <div
+                  onClick={() =>
+                    setInteractionsModal({ isOpen: true, initialTab: "comments" })
+                  }
+                  className="flex items-center gap-2 font-extrabold text-slate-900 text-base cursor-pointer hover:underline"
+                >
                   <MessageCircle size={18} />
                   <span>Discussion ({post.comments?.length || 0})</span>
                 </div>
@@ -738,6 +859,19 @@ export default function PostPage() {
               isVerified: post.author?.isVerified,
             },
           }}
+        />
+      )}
+
+      {/* Interactions Breakdown Modal */}
+      {post && (
+        <PostInteractionsModal
+          isOpen={interactionsModal.isOpen}
+          onClose={() =>
+            setInteractionsModal((prev) => ({ ...prev, isOpen: false }))
+          }
+          postId={post._id}
+          postTitle={post.title}
+          initialTab={interactionsModal.initialTab}
         />
       )}
 
