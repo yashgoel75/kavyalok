@@ -26,19 +26,25 @@ export default function Dashboard() {
     toggleRepost,
   } = useDashboard();
 
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setSidebarOpen(false);
+      }
+    };
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      <div className="flex flex-1 relative">
+    <div className="min-h-screen flex flex-col bg-gray-50/40 text-gray-900 font-sans antialiased">
+      <div className="flex flex-1 relative min-h-screen">
         <SidebarProfile
           userData={userData}
           loading={loading}
@@ -46,13 +52,14 @@ export default function Dashboard() {
           isMobile={isMobile}
           onLogout={handleLogout}
           onClose={() => setSidebarOpen(false)}
+          onToggle={() => setSidebarOpen((prev) => !prev)}
         />
 
-        <main className="flex-1 h-[calc(100vh-4rem)] overflow-y-auto md:ml-0 pb-20 relative">
+        <main className="flex-1 h-screen overflow-y-auto pb-24 relative flex flex-col min-w-0 transition-all duration-300">
           <DashboardHeader
             userData={userData}
             isSidebarOpen={isSidebarOpen}
-            onSidebarToggle={() => setSidebarOpen(!isSidebarOpen)}
+            onSidebarToggle={() => setSidebarOpen((prev) => !prev)}
             onLogout={handleLogout}
             isMobile={isMobile}
           />
@@ -72,6 +79,7 @@ export default function Dashboard() {
               loadingPosts={loadingPosts}
               isFetchingNextPage={isFetchingNextPage}
               onLoadMore={fetchNextPage}
+              isSidebarOpen={isSidebarOpen}
             />
           )}
         </main>
@@ -80,3 +88,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

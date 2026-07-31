@@ -122,6 +122,13 @@ export default React.memo(function PostCard({
   const repostColor = getRepostColor(activeColor, isRepostedByUser);
   const bookmarkColor = getBookmarkColor(activeColor, isBookmarked);
 
+  const reposterUsername =
+    (post.repostedBy && post.repostedBy.length > 0 && post.repostedBy[post.repostedBy.length - 1]?.username) ||
+    topReposterName;
+
+  const reposterExtraCount =
+    post.repostedBy && post.repostedBy.length > 1 ? post.repostedBy.length - 1 : 0;
+
   return (
     <div
       key={post._id}
@@ -132,7 +139,7 @@ export default React.memo(function PostCard({
       onClick={() => {
         if (showShareOptions) setShowShareOptions(false);
       }}
-      className="bg-white relative p-5 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col justify-between border border-black/5"
+      className="bg-white relative p-5 sm:p-6 rounded-3xl shadow-xs hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col justify-between border border-black/5 hover:-translate-y-0.5"
     >
       <div>
         {/* Adaptive High Contrast Repost Header Badge */}
@@ -157,8 +164,8 @@ export default React.memo(function PostCard({
               <Repeat2 size={12} className="stroke-[2.5]" />
             </div>
             <span className="truncate">
-              Reposted by <span className="font-extrabold">@{post.repostedBy![post.repostedBy!.length-1]?.username}</span>
-                    {post.repostedBy!.length > 1 ? ` and ${post.repostedBy!.length - 1} others` : ""}
+              Reposted by <span className="font-extrabold">@{reposterUsername}</span>
+              {reposterExtraCount > 0 ? ` and ${reposterExtraCount} others` : ""}
             </span>
           </div>
         )}
