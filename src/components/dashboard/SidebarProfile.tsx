@@ -52,7 +52,7 @@ const SidebarProfile = memo(
           `}
         >
           {/* Sidebar Top Branding Header */}
-          <div className="flex items-center justify-between px-6 pt-4 pb-2 border-b border-gray-100">
+          <div className="flex items-center justify-between px-6 pt-4 pb-2 border-gray-100">
             <span className="custom-class text-[45px] text-center w-full relative">
               <GradientText
                 colors={[
