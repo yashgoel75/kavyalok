@@ -501,7 +501,7 @@ export default function PostPage() {
                     <Repeat2 size={13} className="stroke-[2.5]" />
                   </div>
                   <span>
-                    Reposted by <span className="font-extrabold">@{post.repostedBy![0]?.username}</span>
+                    Reposted by <span className="font-extrabold">@{post.repostedBy![post.repostedBy!.length-1]?.username}</span>
                     {post.repostedBy!.length > 1 ? ` and ${post.repostedBy!.length - 1} others` : ""}
                   </span>
                 </div>

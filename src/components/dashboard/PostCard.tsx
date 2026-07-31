@@ -157,7 +157,7 @@ export default React.memo(function PostCard({
               <Repeat2 size={12} className="stroke-[2.5]" />
             </div>
             <span className="truncate">
-              Reposted by <span className="font-extrabold">@{post.repostedBy![0]?.username}</span>
+              Reposted by <span className="font-extrabold">@{post.repostedBy![post.repostedBy!.length-1]?.username}</span>
                     {post.repostedBy!.length > 1 ? ` and ${post.repostedBy!.length - 1} others` : ""}
             </span>
           </div>
