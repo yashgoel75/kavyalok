@@ -24,10 +24,13 @@ import {
   Tag,
   Copy,
   Repeat2,
+  Lock,
 } from "lucide-react";
 import { getFirebaseToken } from "@/utils";
 import PostCardModal from "@/components/post/PostCardModal";
 import PostInteractionsModal from "@/components/dashboard/PostInteractionsModal";
+
+import { useUser } from "@/context/UserContext";
 
 interface Author {
   _id: string;
@@ -68,6 +71,7 @@ export default function PostPage() {
   const params = useParams();
   const router = useRouter();
   const postId = params.id as string;
+  const { requireAuth } = useUser();
 
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [post, setPost] = useState<Post | null>(null);
@@ -194,6 +198,7 @@ export default function PostPage() {
   };
 
   const handleFollowAuthor = async () => {
+    if (!requireAuth(undefined, "Log In to Follow Authors", "Follow your favorite writers to get updates on their new pieces.")) return;
     if (!firebaseUser || !post?.author?.email) return;
     setIsFollowLoading(true);
     try {
@@ -223,6 +228,7 @@ export default function PostPage() {
   };
 
   const handleLike = async () => {
+    if (!requireAuth(undefined, "Log In to Like Posts", "Log in to show appreciation for creative pieces.")) return;
     if (!firebaseUser || !post) return;
 
     setIsLiked((prev) => !prev);
@@ -250,6 +256,7 @@ export default function PostPage() {
   };
 
   const handleBookmark = async () => {
+    if (!requireAuth(undefined, "Log In to Bookmark", "Save your favorite poems, stories, and posts to read anytime.")) return;
     if (!firebaseUser || !post) return;
 
     setIsBookmarked((prev) => !prev);
@@ -273,6 +280,7 @@ export default function PostPage() {
   };
 
   const handleRepost = async () => {
+    if (!requireAuth(undefined, "Log In to Repost", "Share inspiring poetry and stories with your followers.")) return;
     if (!firebaseUser || !post) return;
 
     const currentStatus = isReposted;
@@ -318,6 +326,7 @@ export default function PostPage() {
   };
 
   const handleSubmitComment = async () => {
+    if (!requireAuth(undefined, "Log In to Comment", "Log in to share your thoughts on this piece.")) return;
     if (!firebaseUser || !post || !commentText.trim()) return;
 
     setIsSubmittingComment(true);
@@ -358,6 +367,7 @@ export default function PostPage() {
   };
 
   const handleSubmitReply = async (parentId: string) => {
+    if (!requireAuth(undefined, "Log In to Reply", "Log in to reply to comments.")) return;
     if (!firebaseUser || !post || !replyText.trim()) return;
 
     setIsSubmittingComment(true);
@@ -614,12 +624,13 @@ export default function PostPage() {
               )}
 
               {/* Interactive Actions Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-black/10">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-black/10">
+                {/* Primary Actions (Like, Repost, Bookmark) */}
+                <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto">
                   {/* Like Button */}
                   <button
                     onClick={handleLike}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer ${
+                    className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer ${
                       isLiked
                         ? textColor === "#ffffff"
                           ? "bg-white text-slate-900 shadow-md"
@@ -645,7 +656,7 @@ export default function PostPage() {
                   {/* Repost Button */}
                   <button
                     onClick={handleRepost}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer ${
+                    className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer ${
                       isReposted
                         ? "bg-emerald-600 text-white shadow-md"
                         : textColor !== "#ffffff"
@@ -674,12 +685,17 @@ export default function PostPage() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                {/* Secondary Actions (Interactions, Share Card, Link) */}
+                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t border-black/5 sm:border-t-0">
                   <button
                     onClick={() =>
-                      setInteractionsModal({ isOpen: true, initialTab: "reposts" })
+                      requireAuth(
+                        () => setInteractionsModal({ isOpen: true, initialTab: "reposts" }),
+                        "Log In to View Activity",
+                        "Log in to see who reposted, liked, or commented on posts."
+                      )
                     }
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-black/10 hover:bg-black/20 text-xs font-extrabold transition-all cursor-pointer"
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1 px-3 py-2 rounded-2xl bg-black/10 hover:bg-black/20 text-xs font-extrabold transition-all cursor-pointer text-center"
                     title="View all interactions"
                   >
                     <span>Interactions</span>
@@ -687,7 +703,7 @@ export default function PostPage() {
 
                   <button
                     onClick={() => setIsPostCardOpen(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-slate-900 text-white text-xs font-extrabold transition-all active:scale-95 cursor-pointer shadow-md hover:bg-slate-800"
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-2xl bg-slate-900 text-white text-xs font-extrabold transition-all active:scale-95 cursor-pointer shadow-md hover:bg-slate-800"
                   >
                     <Share2 size={15} />
                     <span>Share Card</span>
@@ -695,7 +711,7 @@ export default function PostPage() {
 
                   <button
                     onClick={copyLink}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-extrabold transition-all cursor-pointer ${
+                    className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-extrabold transition-all cursor-pointer ${
                       textColor !== "#ffffff"
                         ? "bg-black/10 hover:bg-black/20 text-slate-900"
                         : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
@@ -711,11 +727,15 @@ export default function PostPage() {
 
           {/* Right Column (30% width = col-span-3) - Discussion & Comments */}
           <div className="lg:col-span-3 space-y-6">
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-lg space-y-5 lg:sticky lg:top-20">
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-lg space-y-5 lg:sticky lg:top-20">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div
                   onClick={() =>
-                    setInteractionsModal({ isOpen: true, initialTab: "comments" })
+                    requireAuth(
+                      () => setInteractionsModal({ isOpen: true, initialTab: "comments" }),
+                      "Log In to View Comments",
+                      "Log in to join the conversation and read comments."
+                    )
                   }
                   className="flex items-center gap-2 font-extrabold text-slate-900 text-base cursor-pointer hover:underline"
                 >
@@ -724,117 +744,123 @@ export default function PostPage() {
                 </div>
               </div>
 
-              {/* Add Comment Input */}
+              {/* Add Comment Input or Protected Notice */}
               {firebaseUser ? (
-                <div className="space-y-3">
-                  <textarea
-                    rows={3}
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Share your thoughts on this piece..."
-                    className="w-full p-3 rounded-2xl text-xs font-medium bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all text-slate-900 placeholder:text-slate-400 resize-none"
-                  />
-                  <button
-                    onClick={handleSubmitComment}
-                    disabled={isSubmittingComment || !commentText.trim()}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-                  >
-                    {isSubmittingComment ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <>
-                        <Send size={13} />
-                        <span>Post Comment</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/60 text-center">
-                  <p className="text-xs text-slate-500 font-medium mb-2">Log in to join the conversation.</p>
-                  <button
-                    onClick={() => router.push("/auth/login")}
-                    className="px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl"
-                  >
-                    Log In
-                  </button>
-                </div>
-              )}
+                <>
+                  <div className="space-y-3">
+                    <textarea
+                      rows={3}
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="Share your thoughts on this piece..."
+                      className="w-full p-3 rounded-2xl text-xs font-medium bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all text-slate-900 placeholder:text-slate-400 resize-none"
+                    />
+                    <button
+                      onClick={handleSubmitComment}
+                      disabled={isSubmittingComment || !commentText.trim()}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSubmittingComment ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <>
+                          <Send size={13} />
+                          <span>Post Comment</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
 
-              {/* Comment Thread List */}
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pt-2">
-                {organizedComments.length > 0 ? (
-                  organizedComments.map((comment) => (
-                    <div key={comment._id} className="space-y-2 text-xs border-b border-slate-100 pb-3 last:border-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700 overflow-hidden flex-shrink-0">
-                            {comment.author?.profilePicture ? (
-                              <Image src={comment.author.profilePicture} alt={comment.author.name} width={28} height={28} className="object-cover" />
-                            ) : (
-                              comment.author?.name?.charAt(0).toUpperCase()
+                  {/* Comment Thread List (Visible to Logged In Users) */}
+                  <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pt-2">
+                    {organizedComments.length > 0 ? (
+                      organizedComments.map((comment) => (
+                        <div key={comment._id} className="space-y-2 text-xs border-b border-slate-100 pb-3 last:border-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700 overflow-hidden flex-shrink-0">
+                                {comment.author?.profilePicture ? (
+                                  <Image src={comment.author.profilePicture} alt={comment.author.name} width={28} height={28} className="object-cover" />
+                                ) : (
+                                  comment.author?.name?.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-extrabold text-slate-900">{comment.author?.name}</p>
+                                <p className="text-[10px] text-slate-400 font-medium">@{comment.author?.username}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-slate-700 font-normal leading-relaxed pl-9">{comment.content}</p>
+
+                          {/* Reply Button */}
+                          <div className="pl-9 pt-1">
+                            <button
+                              onClick={() => setReplyTo(replyTo === comment._id ? null : comment._id)}
+                              className="text-[10px] font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                            >
+                              {replyTo === comment._id ? "Cancel" : "Reply"}
+                            </button>
+
+                            {replyTo === comment._id && (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  rows={2}
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder="Write a reply..."
+                                  className="w-full p-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none"
+                                />
+                                <button
+                                  onClick={() => handleSubmitReply(comment._id)}
+                                  disabled={isSubmittingComment || !replyText.trim()}
+                                  className="px-3 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold"
+                                >
+                                  Submit Reply
+                                </button>
+                              </div>
                             )}
                           </div>
-                          <div>
-                            <p className="font-extrabold text-slate-900">{comment.author?.name}</p>
-                            <p className="text-[10px] text-slate-400 font-medium">@{comment.author?.username}</p>
-                          </div>
-                        </div>
-                      </div>
 
-                      <p className="text-slate-700 font-normal leading-relaxed pl-9">{comment.content}</p>
-
-                      {/* Reply Button */}
-                      {firebaseUser && (
-                        <div className="pl-9 pt-1">
-                          <button
-                            onClick={() => setReplyTo(replyTo === comment._id ? null : comment._id)}
-                            className="text-[10px] font-bold text-slate-500 hover:text-slate-900 transition-colors"
-                          >
-                            {replyTo === comment._id ? "Cancel" : "Reply"}
-                          </button>
-
-                          {replyTo === comment._id && (
-                            <div className="mt-2 space-y-2">
-                              <textarea
-                                rows={2}
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                placeholder="Write a reply..."
-                                className="w-full p-2 rounded-xl text-xs bg-slate-50 border border-slate-200 focus:outline-none"
-                              />
-                              <button
-                                onClick={() => handleSubmitReply(comment._id)}
-                                disabled={isSubmittingComment || !replyText.trim()}
-                                className="px-3 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold"
-                              >
-                                Submit Reply
-                              </button>
+                          {/* Nested Replies */}
+                          {comment.replies && comment.replies.length > 0 && (
+                            <div className="pl-6 space-y-2 border-l-2 border-slate-100 mt-2">
+                              {comment.replies.map((reply) => (
+                                <div key={reply._id} className="space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <CornerDownRight size={11} className="text-slate-400" />
+                                    <span className="font-extrabold text-slate-900 text-[11px]">{reply.author?.name}</span>
+                                  </div>
+                                  <p className="text-slate-600 font-normal pl-4">{reply.content}</p>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
-                      )}
-
-                      {/* Nested Replies */}
-                      {comment.replies && comment.replies.length > 0 && (
-                        <div className="pl-6 space-y-2 border-l-2 border-slate-100 mt-2">
-                          {comment.replies.map((reply) => (
-                            <div key={reply._id} className="space-y-1">
-                              <div className="flex items-center gap-1.5">
-                                <CornerDownRight size={11} className="text-slate-400" />
-                                <span className="font-extrabold text-slate-900 text-[11px]">{reply.author?.name}</span>
-                              </div>
-                              <p className="text-slate-600 font-normal pl-4">{reply.content}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-slate-400 text-center py-4 font-medium">No comments yet. Be the first to share your thoughts!</p>
-                )}
-              </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 text-center py-4 font-medium">No comments yet. Be the first to share your thoughts!</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200/60 text-center space-y-2.5">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center mx-auto">
+                    <Lock size={18} />
+                  </div>
+                  <h4 className="font-extrabold text-slate-900 text-xs">Comments are Protected</h4>
+                  <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    Log in to read what other readers are saying and join the discussion.
+                  </p>
+                  <button
+                    onClick={() => requireAuth(undefined, "Log In to View Comments", "Log in to view reader comments and discussions.")}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm active:scale-95"
+                  >
+                    Log In to View Comments
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

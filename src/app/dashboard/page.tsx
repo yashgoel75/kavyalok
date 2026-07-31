@@ -64,24 +64,22 @@ export default function Dashboard() {
             isMobile={isMobile}
           />
 
-          {user && (
-            <PostFeed
-              posts={posts}
-              userData={userData}
-              firebaseUser={user}
-              likedPosts={likedPosts}
-              bookmarkedPosts={bookmarkedPosts}
-              repostedPosts={repostedPosts}
-              onLike={toggleLike}
-              onBookmark={toggleBookmark}
-              onRepost={toggleRepost}
-              hasMore={hasMore}
-              loadingPosts={loadingPosts}
-              isFetchingNextPage={isFetchingNextPage}
-              onLoadMore={fetchNextPage}
-              isSidebarOpen={isSidebarOpen}
-            />
-          )}
+          <PostFeed
+            posts={posts}
+            userData={userData}
+            firebaseUser={user}
+            likedPosts={likedPosts}
+            bookmarkedPosts={bookmarkedPosts}
+            repostedPosts={repostedPosts}
+            onLike={toggleLike}
+            onBookmark={toggleBookmark}
+            onRepost={toggleRepost}
+            hasMore={hasMore}
+            loadingPosts={loadingPosts}
+            isFetchingNextPage={isFetchingNextPage}
+            onLoadMore={fetchNextPage}
+            isSidebarOpen={isSidebarOpen}
+          />
         </main>
       </div>
       <Navigation />

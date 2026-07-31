@@ -8,10 +8,12 @@ import { Loader2, Feather } from "lucide-react";
 import CreatePostModal from "@/components/post/CreatePostModal";
 import PostInteractionsModal from "./PostInteractionsModal";
 
+import { useUser } from "@/context/UserContext";
+
 interface FeedProps {
   posts: Post[] | null;
   userData: User | null;
-  firebaseUser: FirebaseUser;
+  firebaseUser: FirebaseUser | null;
   likedPosts: Record<string, boolean>;
   bookmarkedPosts: Record<string, boolean>;
   repostedPosts?: Record<string, boolean>;
@@ -41,6 +43,7 @@ export default function PostFeed({
   isFetchingNextPage = false,
   isSidebarOpen = true,
 }: FeedProps) {
+  const { requireAuth } = useUser();
   const [filter, setFilter] = useState<"ALL" | "FRIENDS">("ALL");
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [interactionsModal, setInteractionsModal] = useState<{
@@ -125,7 +128,13 @@ export default function PostFeed({
 
         {/* Quick Create Post Button */}
         <button
-          onClick={() => setIsCreatePostOpen(true)}
+          onClick={() =>
+            requireAuth(
+              () => setIsCreatePostOpen(true),
+              "Log In to Create Posts",
+              "Share your poetry, stories, and thoughts with the community."
+            )
+          }
           className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer self-start sm:self-auto shrink-0"
         >
           <Feather size={16} />

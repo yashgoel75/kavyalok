@@ -49,6 +49,8 @@ export interface User {
   privacySettings?: PrivacySettings;
 }
 
+import LoginModal from "@/components/auth/LoginModal";
+
 interface UserContextType {
   firebaseUser: FirebaseUser | null;
   userData: User | null;
@@ -56,6 +58,10 @@ interface UserContextType {
   refreshUserData: () => Promise<User | null>;
   setUserData: React.Dispatch<React.SetStateAction<User | null>>;
   logout: () => Promise<void>;
+  isLoginModalOpen: boolean;
+  openLoginModal: (title?: string, subtitle?: string) => void;
+  closeLoginModal: () => void;
+  requireAuth: (actionCallback?: () => void, title?: string, subtitle?: string) => boolean;
 }
 
 const UserContext = createContext<UserContextType>({
@@ -65,12 +71,51 @@ const UserContext = createContext<UserContextType>({
   refreshUserData: async () => null,
   setUserData: () => {},
   logout: async () => {},
+  isLoginModalOpen: false,
+  openLoginModal: () => {},
+  closeLoginModal: () => {},
+  requireAuth: () => false,
 });
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userData, setUserData] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginModalOptions, setLoginModalOptions] = useState<{ title?: string; subtitle?: string }>({});
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const openLoginModal = useCallback((title?: string, subtitle?: string) => {
+    setLoginModalOptions({ title, subtitle });
+    setIsLoginModalOpen(true);
+  }, []);
+
+  const closeLoginModal = useCallback(() => {
+    setIsLoginModalOpen(false);
+    setPendingAction(null);
+  }, []);
+
+  const requireAuth = useCallback(
+    (actionCallback?: () => void, title?: string, subtitle?: string): boolean => {
+      if (firebaseUser) {
+        if (actionCallback) actionCallback();
+        return true;
+      }
+
+      if (actionCallback) setPendingAction(() => actionCallback);
+      openLoginModal(title, subtitle);
+      return false;
+    },
+    [firebaseUser, openLoginModal]
+  );
+
+  const handleLoginSuccess = useCallback(() => {
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  }, [pendingAction]);
 
   const fetchUserData = useCallback(async (email: string): Promise<User | null> => {
     try {
@@ -161,9 +206,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshUserData,
         setUserData,
         logout,
+        isLoginModalOpen,
+        openLoginModal,
+        closeLoginModal,
+        requireAuth,
       }}
     >
       {children}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={closeLoginModal}
+        onSuccess={handleLoginSuccess}
+        title={loginModalOptions.title}
+        subtitle={loginModalOptions.subtitle}
+      />
     </UserContext.Provider>
   );
 };

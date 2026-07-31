@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Check, X } from "lucide-react";
 import GradientText from "@/components/GradientText";
 import { User } from "@/hooks/useDashboard";
+import { useUser } from "@/context/UserContext";
 
 interface SidebarProps {
   userData: User | null;
@@ -23,6 +24,7 @@ const SidebarProfile = memo(
     onClose,
     onLogout,
   }: SidebarProps) => {
+    const { requireAuth } = useUser();
     return (
       <>
         {/* Mobile Backdrop Overlay */}
@@ -218,7 +220,87 @@ const SidebarProfile = memo(
                 </div>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="flex flex-col flex-1 justify-between bg-white overflow-y-auto">
+              {/* Guest Welcome Box */}
+              <div className="p-6 text-center border-b border-gray-100 flex flex-col items-center">
+
+                <h3 className="text-xl font-extrabold text-gray-900">Welcome to Kavyalok</h3>
+                <p className="text-xs text-gray-600 mt-2 leading-relaxed font-medium max-w-[240px]">
+                  Join our community of poets, writers, and storytellers to post, like, and interact.
+                </p>
+
+                <div className="w-full space-y-2.5 mt-5">
+                  <button
+                    onClick={() => {
+                      if (isMobile) onClose();
+                      requireAuth(undefined, "Welcome to Kavyalok", "Log in to access your profile, posts, and community interactions.");
+                    }}
+                    className="w-full py-2.5 bg-yellow-600 hover:bg-yellow-700 text-white font-bold text-xs rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+                  >
+                    Log In
+                  </button>
+                  <Link
+                    href="/auth/register"
+                    onClick={isMobile ? onClose : undefined}
+                    className="block w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl transition cursor-pointer text-center"
+                  >
+                    Create Account
+                  </Link>
+                </div>
+              </div>
+
+              {/* Sidebar Integrated Footer Navigation */}
+              <div className="mt-auto border-t border-gray-100 bg-gray-50/70 p-5 space-y-4 text-xs text-gray-600">
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
+                    Platform
+                  </h4>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                    <Link href="/about" className="hover:text-gray-900 transition-colors">About Us</Link>
+                    <span className="text-gray-300">•</span>
+                    <Link href="/team" className="hover:text-gray-900 transition-colors">Our Team</Link>
+                    <span className="text-gray-300">•</span>
+                    <Link href="/careers" className="hover:text-gray-900 transition-colors">Careers</Link>
+                    <span className="text-gray-300">•</span>
+                    <Link href="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
+                    Legal
+                  </h4>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                    <Link href="/privacy-policy" className="hover:text-gray-900 transition-colors">Privacy</Link>
+                    <span className="text-gray-300">•</span>
+                    <Link href="/terms-and-conditions" className="hover:text-gray-900 transition-colors">Terms</Link>
+                    <span className="text-gray-300">•</span>
+                    <Link href="/refund-policy" className="hover:text-gray-900 transition-colors">Refund</Link>
+                    <span className="text-gray-300">•</span>
+                    <Link href="/shipping-policy" className="hover:text-gray-900 transition-colors">Shipping</Link>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
+                    Connect
+                  </h4>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                    <a href="mailto:support@kavyalok.in" className="hover:text-gray-900 transition-colors">support@kavyalok.in</a>
+                    <span className="text-gray-300">•</span>
+                    <a href="https://linkedin.com/company/kavyalok-in" target="_blank" rel="noreferrer" className="hover:text-gray-900 transition-colors">LinkedIn</a>
+                    <span className="text-gray-300">•</span>
+                    <a href="https://instagram.com/kavyalok.in" target="_blank" rel="noreferrer" className="hover:text-gray-900 transition-colors">Instagram</a>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-gray-200/60 text-[11px] text-gray-400 text-center">
+                  © {new Date().getFullYear()} Kavyalok. All rights reserved.
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
       </>
     );

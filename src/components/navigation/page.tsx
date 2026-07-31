@@ -12,7 +12,7 @@ export default function Navigation() {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
 
-  const { firebaseUser } = useUser();
+  const { firebaseUser, requireAuth } = useUser();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -63,7 +63,13 @@ export default function Navigation() {
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setIsCreatePostOpen(true)}
+                  onClick={() =>
+                    requireAuth(
+                      () => setIsCreatePostOpen(true),
+                      "Log In to Create Posts",
+                      "Share your poetry, stories, and thoughts with the community."
+                    )
+                  }
                   title={item.title}
                   className="relative cursor-pointer focus:outline-none"
                 >

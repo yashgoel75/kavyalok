@@ -1,68 +1,86 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { getFirebaseToken } from "@/utils";
-import { useUser, User } from "@/context/UserContext";
+"use client";
 
-export type { User };
+import { useEffect, useState, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@/context/UserContext";
+import { getFirebaseToken } from "@/utils";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+
+export interface User {
+  name: string;
+  username: string;
+  email: string;
+  profilePicture?: string;
+  bio?: string;
+  followers?: string[];
+  following?: string[];
+  posts?: any[];
+  reposts?: string[];
+  isVerified?: boolean;
+  defaultPostColor?: string;
+}
 
 export interface Post {
   _id: string;
   title: string;
   content: string;
-  comments: [string];
   picture?: string;
   author: User;
   likes: number;
+  comments: [string];
+  createdAt: string;
+  updatedAt: string;
   color: string;
+  sortByTime?: string;
   repostCount?: number;
   repostedBy?: any[];
   isRepost?: boolean;
   originalPost?: string;
   repostedByAuthor?: User;
   repostedByAuthors?: User[];
-  createdAt?: string;
-  updatedAt?: string;
-  sortByTime?: string;
-  lastModifiedTime?: string;
-  lastRepostedAt?: string;
-  lastActivityAt?: string;
 }
 
 const fetchPostsPage = async ({
   pageParam = 1,
   userEmail,
 }: {
-  pageParam: number;
-  userEmail?: string | null;
+  pageParam?: number;
+  userEmail?: string;
 }) => {
-  const exclude = userEmail ? `&excludeEmail=${encodeURIComponent(userEmail)}` : "";
-  const res = await fetch(`/api/getallposts?page=${pageParam}&limit=9${exclude}`);
-  if (!res.ok) throw new Error("Failed to fetch posts");
+  const token = await getFirebaseToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const queryParams = new URLSearchParams({
+    page: pageParam.toString(),
+    limit: "10",
+  });
+  if (userEmail) queryParams.append("email", userEmail);
+
+  const res = await fetch(`/api/getallposts?${queryParams.toString()}`, {
+    headers,
+  });
+
   const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to fetch posts");
 
   return {
     posts: (data.posts || []) as Post[],
-    hasMore: data.hasMore as boolean,
     nextPage: data.hasMore ? pageParam + 1 : undefined,
+    totalPages: data.totalPages,
   };
 };
 
 export function useDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { firebaseUser: user, userData, loading, logout: handleLogout } = useUser();
+  const { firebaseUser: user, userData, loading, logout: handleLogout, requireAuth } = useUser();
 
   const userEmail = user?.email || userData?.email;
 
-  // Redirect unauthenticated user to home
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/");
-    }
-  }, [loading, user, router]);
-
-  // TanStack React Query for infinite scrolling
+  // TanStack React Query for infinite scrolling (enabled for both guests and authenticated users)
   const {
     data,
     fetchNextPage,
@@ -70,11 +88,11 @@ export function useDashboard() {
     isFetchingNextPage,
     isLoading: loadingPosts,
   } = useInfiniteQuery({
-    queryKey: ["dashboard-posts", userEmail],
+    queryKey: ["dashboard-posts", userEmail || "guest"],
     queryFn: ({ pageParam = 1 }) => fetchPostsPage({ pageParam, userEmail }),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.nextPage,
-    enabled: !loading,
+    enabled: true,
   });
 
   const rawPosts = useMemo(() => {
@@ -210,6 +228,7 @@ export function useDashboard() {
   }, [rawPosts, likesOverrides, repostCountOverrides, repostTimestampOverrides]);
 
   const toggleLike = async (postId: string) => {
+    if (!requireAuth(undefined, "Log In to Like Posts", "Log in to show appreciation for creative pieces.")) return;
     if (!user) return;
 
     setLikedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
@@ -238,6 +257,7 @@ export function useDashboard() {
   };
 
   const toggleBookmark = async (postId: string) => {
+    if (!requireAuth(undefined, "Log In to Bookmark", "Save your favorite poems, stories, and posts to read anytime.")) return;
     if (!user) return;
 
     setBookmarkedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
@@ -260,6 +280,7 @@ export function useDashboard() {
   };
 
   const toggleRepost = async (postId: string) => {
+    if (!requireAuth(undefined, "Log In to Repost", "Share inspiring poetry and stories with your followers.")) return;
     if (!user) return;
 
     const isCurrentlyReposted = !!repostedPosts[postId];
