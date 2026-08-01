@@ -27,13 +27,7 @@ export async function POST(req: Request) {
 
     await Bookmark.deleteOne({ user: user._id, post: postId });
 
-    const updatedUser = await User.findOneAndUpdate(
-      { email },
-      { $pull: { bookmarks: postId } },
-      { new: true }
-    ).lean();
-
-    return NextResponse.json({ success: true, user: updatedUser });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error removing bookmark:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

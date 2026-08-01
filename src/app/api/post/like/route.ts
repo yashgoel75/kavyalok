@@ -35,17 +35,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Check existing like via new Like collection or fallback to embedded array
+    // Check existing like strictly via canonical Like collection
     const existingLike = await Like.findOne({ user: user._id, post: post._id });
-    const hasLiked = !!existingLike || user.likes?.includes(postId);
+    const hasLiked = !!existingLike;
 
     if (hasLiked) {
       // Delete from Like collection
       await Like.deleteOne({ user: user._id, post: post._id });
 
-      // Dual Pull from User.likes
-      await User.updateOne({ email }, { $pull: { likes: postId } });
-      post.likes = Math.max(0, post.likes - 1);
+      // Clean up legacy array entry if present
+      await User.updateOne({ _id: user._id }, { $pull: { likes: postId } });
+
+      // Atomic decrement post.likes (prevent negative values)
+      await Post.updateOne(
+        { _id: post._id, likes: { $gt: 0 } },
+        { $inc: { likes: -1 } }
+      );
     } else {
       // Insert into Like collection
       await Like.updateOne(
@@ -54,15 +59,17 @@ export async function POST(req: NextRequest) {
         { upsert: true }
       );
 
-      // Dual Add to User.likes
-      await User.updateOne({ email }, { $addToSet: { likes: postId } });
-      post.likes += 1;
+      // Atomic increment post.likes
+      await Post.updateOne(
+        { _id: post._id },
+        { $inc: { likes: 1 } }
+      );
 
       const authorEmail = typeof post.author === "object" ? post.author.email : null;
       const authorId = typeof post.author === "object" ? post.author._id : post.author;
 
       if (authorEmail && authorEmail !== email) {
-        // Standalone Notification
+        // Standalone Notification Collection
         await Notification.create({
           recipient: authorId,
           sender: user._id,
@@ -72,20 +79,6 @@ export async function POST(req: NextRequest) {
           fromEmail: email,
           read: false,
         });
-
-        // Dual Push Embedded Notification
-        const notification = {
-          type: "post_like",
-          fromEmail: email,
-          postId: post._id,
-          read: false,
-          createdAt: new Date(),
-        };
-
-        await User.updateOne(
-          { email: authorEmail },
-          { $push: { notifications: notification } }
-        );
       }
 
       // Track Interaction for Recommendations
@@ -96,10 +89,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await post.save();
+    const updatedPost = await Post.findById(post._id).select("likes").lean<{ likes?: number }>();
+    const finalLikes = updatedPost?.likes ?? 0;
 
     return NextResponse.json(
-      { message: hasLiked ? "Post unliked" : "Post liked", likes: post.likes },
+      { message: hasLiked ? "Post unliked" : "Post liked", likes: finalLikes },
       { status: 200 }
     );
   } catch (error) {

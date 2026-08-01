@@ -47,13 +47,6 @@ export async function GET(req: NextRequest) {
 
     const postIds: string[] = postIdsParam ? JSON.parse(postIdsParam) : [];
 
-    const cacheKey = `interactions:${email}:${page}:${limit}:${JSON.stringify(postIds)}`;
-
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached);
-    }
-
     const user = await User.findOne({ email }).lean();
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -61,19 +54,15 @@ export async function GET(req: NextRequest) {
 
     const u = user as UserDocument;
 
-    // Fetch from scalable collections
+    // Fetch strictly from scalable collections
     const userLikesDocs = await Like.find({ user: u._id, post: { $in: postIds } }).lean();
     const userBookmarksDocs = await Bookmark.find({ user: u._id, post: { $in: postIds } }).lean();
 
     const likesFromColl = userLikesDocs.map((l) => l.post.toString());
     const bookmarksFromColl = userBookmarksDocs.map((b) => b.post.toString());
 
-    // Merge with legacy user arrays for complete accuracy
-    const likesAll = Array.from(new Set([...likesFromColl, ...(u.likes || []).filter((id) => postIds.includes(id))]));
-    const bookmarksAll = Array.from(new Set([...bookmarksFromColl, ...(u.bookmarks || []).filter((id) => postIds.includes(id))]));
-
-    const likes = paginate(likesAll, page, limit);
-    const bookmarks = paginate(bookmarksAll, page, limit);
+    const likes = paginate(likesFromColl, page, limit);
+    const bookmarks = paginate(bookmarksFromColl, page, limit);
 
     const response = {
       likes: likes.data,
@@ -83,8 +72,6 @@ export async function GET(req: NextRequest) {
       hasMoreLikes: likes.hasMore,
       hasMoreBookmarks: bookmarks.hasMore,
     };
-
-    await redis.set(cacheKey, response, { ex: 300 });
 
     return NextResponse.json(response);
   } catch (err) {
@@ -116,33 +103,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cacheKey = `interactions:${email}:${page}:${limit}:${JSON.stringify(postIds)}`;
-
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached);
-    }
-
-    const user = await User.findOne({ email }).select("_id likes bookmarks").lean();
+    const user = await User.findOne({ email }).select("_id").lean();
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const u = user as UserDocument;
 
-    // Fetch from scalable collections
+    // Fetch strictly from scalable collections
     const userLikesDocs = await Like.find({ user: u._id, post: { $in: postIds } }).lean();
     const userBookmarksDocs = await Bookmark.find({ user: u._id, post: { $in: postIds } }).lean();
 
     const likesFromColl = userLikesDocs.map((l) => l.post.toString());
     const bookmarksFromColl = userBookmarksDocs.map((b) => b.post.toString());
 
-    // Merge with legacy user arrays for complete accuracy
-    const likesAll = Array.from(new Set([...likesFromColl, ...(u.likes || []).filter((id) => postIds.includes(id))]));
-    const bookmarksAll = Array.from(new Set([...bookmarksFromColl, ...(u.bookmarks || []).filter((id) => postIds.includes(id))]));
-
-    const likes = paginate(likesAll, page, limit);
-    const bookmarks = paginate(bookmarksAll, page, limit);
+    const likes = paginate(likesFromColl, page, limit);
+    const bookmarks = paginate(bookmarksFromColl, page, limit);
 
     const response = {
       likes: likes.data,
@@ -152,8 +128,6 @@ export async function POST(req: NextRequest) {
       hasMoreLikes: likes.hasMore,
       hasMoreBookmarks: bookmarks.hasMore,
     };
-
-    await redis.set(cacheKey, response, { ex: 300 });
 
     return NextResponse.json(response);
   } catch (err) {

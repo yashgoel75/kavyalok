@@ -54,8 +54,8 @@ export async function GET(req: NextRequest) {
     const likeDoc = await Like.findOne({ user: userDoc._id, post: postId });
     const bookmarkDoc = await Bookmark.findOne({ user: userDoc._id, post: postId });
 
-    const isLiked = !!likeDoc || userDoc.likes?.includes(postId) || false;
-    const isBookmarked = !!bookmarkDoc || userDoc.bookmarks?.includes(postId) || false;
+    const isLiked = !!likeDoc;
+    const isBookmarked = !!bookmarkDoc;
 
     return NextResponse.json({ isLiked, isBookmarked }, { status: 200 });
   } catch (error) {

@@ -33,9 +33,6 @@ export async function POST(req: NextRequest) {
       { $set: { read: true } }
     );
 
-    // Dual update: clear embedded notifications
-    await User.updateOne({ email }, { $set: { notifications: [] } });
-
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error(err);

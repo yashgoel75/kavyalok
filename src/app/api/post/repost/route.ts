@@ -46,16 +46,12 @@ export async function POST(req: NextRequest) {
     const isUserInRepostedBy = originalPost.repostedBy?.some(
       (id: any) => id.toString() === user._id.toString()
     );
-    const hasReposted = !!existingRepost || !!isUserInRepostedBy || (user.reposts || []).includes(originalPost._id.toString());
+    const hasReposted = !!existingRepost || !!isUserInRepostedBy;
 
     if (hasReposted) {
       // Unrepost: remove user repost record
       await Repost.deleteOne({ user: user._id, post: originalPost._id });
-
-      await User.updateOne(
-        { email },
-        { $pull: { reposts: originalPost._id.toString() } }
-      );
+      await User.updateOne({ _id: user._id }, { $pull: { reposts: originalPost._id.toString() } });
 
       // Find the most recent remaining repost for this post, or fallback to original createdAt
       const latestRemainingRepost = await Repost.findOne({ post: originalPost._id }).sort({ createdAt: -1 });
@@ -95,11 +91,6 @@ export async function POST(req: NextRequest) {
         { user: user._id, post: originalPost._id },
         { $set: { createdAt: now } },
         { upsert: true }
-      );
-
-      await User.updateOne(
-        { email },
-        { $addToSet: { reposts: originalPost._id.toString() } }
       );
 
       await Post.updateOne(

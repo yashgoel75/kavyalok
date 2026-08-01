@@ -61,9 +61,6 @@ export async function POST(req: NextRequest) {
       lastActivityAt: now,
     });
 
-    user.posts.push(post._id);
-    await user.save();
-
     return NextResponse.json(
       { message: "Post created successfully", post },
       { status: 201 }

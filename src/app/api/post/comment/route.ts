@@ -44,10 +44,6 @@ export async function POST(req: NextRequest) {
 
     await newComment.save();
 
-    // Dual Push to post.comments for backward compatibility
-    post.comments.push(newComment._id);
-    await post.save();
-
     // Track Interaction for Recommendations
     await Interaction.create({
       user: user._id,

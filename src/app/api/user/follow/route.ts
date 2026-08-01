@@ -40,22 +40,11 @@ export async function POST(req: NextRequest) {
         }
 
         if (action === "follow") {
-            // New Scalable Follow Collection
+            // Scalable Follow Collection
             await Follow.updateOne(
                 { follower: currentUser._id, following: targetUser._id },
                 { $setOnInsert: { follower: currentUser._id, following: targetUser._id } },
                 { upsert: true }
-            );
-
-            // Backward Compatibility Dual Write
-            await User.updateOne(
-                { email: currentUserEmail },
-                { $addToSet: { following: targetEmail } }
-            );
-
-            await User.updateOne(
-                { email: targetEmail },
-                { $addToSet: { followers: currentUserEmail } }
             );
 
             // Standalone Notification Collection
@@ -66,19 +55,6 @@ export async function POST(req: NextRequest) {
                 fromEmail: currentUserEmail,
                 read: false,
             });
-
-            // Dual Write Embedded Notification
-            const notification = {
-                type: "new_follower",
-                fromEmail: currentUserEmail,
-                read: false,
-                createdAt: new Date(),
-            };
-
-            await User.updateOne(
-                { email: targetEmail },
-                { $push: { notifications: notification } }
-            );
 
             // Track Interaction for Recommendations
             await Interaction.create({
@@ -96,17 +72,6 @@ export async function POST(req: NextRequest) {
                 follower: currentUser._id,
                 following: targetUser._id,
             });
-
-            // Backward Compatibility Dual Pull
-            await User.updateOne(
-                { email: currentUserEmail },
-                { $pull: { following: targetEmail } }
-            );
-
-            await User.updateOne(
-                { email: targetEmail },
-                { $pull: { followers: currentUserEmail } }
-            );
 
             return NextResponse.json(
                 { message: "User unfollowed successfully" },

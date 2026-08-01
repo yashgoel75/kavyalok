@@ -31,18 +31,17 @@ export async function POST(req: NextRequest) {
     }
 
     const existingBookmark = await Bookmark.findOne({ user: user._id, post: postId });
-    const hasBookmarked = !!existingBookmark || user.bookmarks?.includes(postId);
+    const hasBookmarked = !!existingBookmark;
 
     if (hasBookmarked) {
       await Bookmark.deleteOne({ user: user._id, post: postId });
-      await User.updateOne({ email }, { $pull: { bookmarks: postId } });
+      await User.updateOne({ _id: user._id }, { $pull: { bookmarks: postId } });
     } else {
       await Bookmark.updateOne(
         { user: user._id, post: postId },
         { $setOnInsert: { user: user._id, post: postId } },
         { upsert: true }
       );
-      await User.updateOne({ email }, { $addToSet: { bookmarks: postId } });
 
       await Interaction.create({
         user: user._id,
