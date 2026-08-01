@@ -263,7 +263,7 @@ export default React.memo(function PostCard({
         }}
       >
         {/* Left Action Buttons */}
-        <div className="flex items-center gap-5 sm:gap-6">
+        <div className="flex items-center gap-5 sm:gap-5">
           {/* 1. Like Button */}
           <div className="flex items-center gap-1.5">
             <button
@@ -286,7 +286,7 @@ export default React.memo(function PostCard({
               </svg>
             </button>
 
-            <button
+            {/* <button
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenInteractions?.("likes", post._id, post.title);
@@ -296,7 +296,7 @@ export default React.memo(function PostCard({
               title="See who liked"
             >
               {post.likes || 0}
-            </button>
+            </button> */}
           </div>
 
           {/* 2. Comment Button */}

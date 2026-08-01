@@ -22,7 +22,7 @@ export default function Home() {
         }, 1500);
       } else {
         const timer = setTimeout(() => {
-          router.replace("/auth/login");
+          router.replace("/dashboard");
         }, 1500);
       }
     });
