@@ -130,7 +130,7 @@ export default function ProfileCardModal({
     : getTextColor(selectedTheme.value);
   const isDarkText = cardTextColor === "#000000";
 
-  // Dynamic canvas text color for logo & outer watermarks
+  // Dynamic canvas text color for logo, watermarks & IG Story UI mockup guide
   const canvasTextColor = getCanvasTextColor(canvasBgPreset, customCanvasColor);
   const isCanvasDarkText = canvasTextColor === "#0f172a" || canvasTextColor === "#000000";
 
@@ -295,37 +295,88 @@ export default function ProfileCardModal({
                       {/* Top Instagram Header Mockup */}
                       <div className="space-y-2 pt-0.5">
                         <div className="w-full flex gap-1 h-0.5">
-                          <div className="h-full flex-1 bg-white/70 rounded-full" />
-                          <div className="h-full flex-1 bg-white/30 rounded-full" />
-                          <div className="h-full flex-1 bg-white/30 rounded-full" />
+                          <div
+                            className={`h-full flex-1 rounded-full ${
+                              isCanvasDarkText ? "bg-slate-900/70" : "bg-white/70"
+                            }`}
+                          />
+                          <div
+                            className={`h-full flex-1 rounded-full ${
+                              isCanvasDarkText ? "bg-slate-900/25" : "bg-white/30"
+                            }`}
+                          />
+                          <div
+                            className={`h-full flex-1 rounded-full ${
+                              isCanvasDarkText ? "bg-slate-900/25" : "bg-white/30"
+                            }`}
+                          />
                         </div>
-                        <div className="flex items-center justify-between text-white drop-shadow-md px-0.5">
+                        <div
+                          className="flex items-center justify-between px-0.5"
+                          style={{
+                            color: isCanvasDarkText ? "#0f172a" : "#ffffff",
+                          }}
+                        >
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 p-[1.5px]">
-                              <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-[9px] font-bold text-white">
+                              <div
+                                className={`w-full h-full rounded-full overflow-hidden flex items-center justify-center text-[9px] font-bold ${
+                                  isCanvasDarkText
+                                    ? "bg-slate-100 text-slate-900"
+                                    : "bg-slate-900 text-white"
+                                }`}
+                              >
                                 {user.name ? user.name.charAt(0).toUpperCase() : "U"}
                               </div>
                             </div>
                             <div className="leading-none">
-                              <span className="text-[11px] font-semibold text-white tracking-tight">
+                              <span className="text-[11px] font-semibold tracking-tight">
                                 {user.username || "your_username"}
                               </span>
                               <span className="opacity-60 text-[9px] ml-1.5">2h</span>
                             </div>
                           </div>
-                          <div className="text-white/80 text-[10px] tracking-widest font-bold">•••</div>
+                          <div className="opacity-80 text-[10px] tracking-widest font-bold">•••</div>
                         </div>
                       </div>
 
                       {/* Bottom Instagram Interactive Bar Mockup */}
-                      <div className="flex items-center gap-2 pb-0.5 text-white">
-                        <div className="flex-1 bg-slate-950/40 backdrop-blur-md border border-white/25 rounded-full px-3 py-1.5 text-[10px] text-white/70 font-medium">
+                      <div
+                        className="flex items-center gap-2 pb-0.5"
+                        style={{
+                          color: isCanvasDarkText ? "#0f172a" : "#ffffff",
+                        }}
+                      >
+                        <div
+                          className={`flex-1 rounded-full px-3 py-1.5 text-[10px] font-medium border backdrop-blur-md ${
+                            isCanvasDarkText
+                              ? "bg-white/80 border-black/20 text-slate-900 shadow-sm"
+                              : "bg-slate-950/40 border-white/25 text-white/80"
+                          }`}
+                        >
                           Send message...
                         </div>
-                        <div className="p-1.5 bg-slate-950/40 backdrop-blur-md rounded-full border border-white/20 text-white">
-                          <Heart size={13} className="fill-white/20" />
+                        <div
+                          className={`p-1.5 rounded-full border backdrop-blur-md ${
+                            isCanvasDarkText
+                              ? "bg-white/80 border-black/20 text-slate-900 shadow-sm"
+                              : "bg-slate-950/40 border-white/20 text-white"
+                          }`}
+                        >
+                          <Heart
+                            size={13}
+                            className={
+                              isCanvasDarkText ? "fill-slate-900/20" : "fill-white/20"
+                            }
+                          />
                         </div>
-                        <div className="p-1.5 bg-slate-950/40 backdrop-blur-md rounded-full border border-white/20 text-white">
+                        <div
+                          className={`p-1.5 rounded-full border backdrop-blur-md ${
+                            isCanvasDarkText
+                              ? "bg-white/80 border-black/20 text-slate-900 shadow-sm"
+                              : "bg-slate-950/40 border-white/20 text-white"
+                          }`}
+                        >
                           <Share2 size={13} />
                         </div>
                       </div>
@@ -718,6 +769,8 @@ export default function ProfileCardModal({
                     <div className="grid grid-cols-3 gap-2">
                       {CANVAS_BG_PRESETS.map((preset) => {
                         const isSelected = canvasBgPreset.id === preset.id;
+                        const presetTextColor = getCanvasTextColor(preset, customCanvasColor);
+                        const isPresetLight = presetTextColor === "#0f172a" || presetTextColor === "#000000";
                         return (
                           <button
                             key={preset.id}
@@ -725,15 +778,29 @@ export default function ProfileCardModal({
                             style={{ background: preset.previewCss }}
                             className={`h-14 rounded-2xl p-2 border transition-all flex flex-col justify-end text-left cursor-pointer relative overflow-hidden shadow-sm ${
                               isSelected
-                                ? "ring-2 ring-indigo-500 ring-offset-2 scale-[1.02] border-white"
+                                ? "ring-2 ring-indigo-500 ring-offset-2 scale-[1.02] border-slate-400 dark:border-white"
+                                : isPresetLight
+                                ? "border-slate-300 hover:border-slate-400"
                                 : "border-black/10 hover:opacity-95"
                             }`}
                           >
-                            <span className="text-[10px] font-extrabold text-white drop-shadow-md truncate">
+                            <span
+                              className="text-[10px] font-extrabold truncate"
+                              style={{
+                                color: presetTextColor,
+                                textShadow: isPresetLight ? "none" : "0 1px 2px rgba(0,0,0,0.5)",
+                              }}
+                            >
                               {preset.name}
                             </span>
                             {isSelected && (
-                              <div className="absolute top-1.5 right-1.5 p-0.5 bg-indigo-600 text-white rounded-full">
+                              <div
+                                className={`absolute top-1.5 right-1.5 p-0.5 rounded-full ${
+                                  isPresetLight
+                                    ? "bg-slate-900 text-white"
+                                    : "bg-indigo-600 text-white"
+                                }`}
+                              >
                                 <Check size={10} strokeWidth={3} />
                               </div>
                             )}
@@ -747,7 +814,7 @@ export default function ProfileCardModal({
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                         Custom Canvas Hex Color
                       </label>
-                      <div className="flex items-center gap-2">
+                      <div className="flex rounded-xl items-center gap-2">
                         <input
                           type="color"
                           value={customCanvasColor}
@@ -761,7 +828,7 @@ export default function ProfileCardModal({
                               previewCss: e.target.value,
                             });
                           }}
-                          className="w-10 h-10 rounded-xl border border-slate-300 dark:border-slate-700 cursor-pointer p-0.5 bg-transparent"
+                          className="w-10 h-10 rounded-full border border-slate-300 dark:border-slate-700 cursor-pointer p-0.5 bg-transparent"
                         />
                         <input
                           type="text"
@@ -777,7 +844,7 @@ export default function ProfileCardModal({
                             });
                           }}
                           placeholder="#0f172a"
-                          className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                          className="flex-1 px-3 py-2 text-xs font-mono rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                         />
                       </div>
                     </div>
@@ -799,19 +866,39 @@ export default function ProfileCardModal({
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                       {CARD_THEME_PRESETS.map((theme) => {
                         const isSelected = selectedTheme.name === theme.name;
+                        const themeTextColor = theme.isGlass
+                          ? "#ffffff"
+                          : getTextColor(theme.value);
+                        const isThemeLight = themeTextColor === "#000000";
+
                         return (
                           <button
                             key={theme.name}
                             onClick={() => setSelectedTheme(theme)}
-                            style={{ backgroundColor: theme.value }}
-                            className={`p-3 rounded-2xl border text-xs font-bold text-white transition-all flex items-center justify-between cursor-pointer ${
+                            style={{
+                              backgroundColor: theme.value,
+                              color: themeTextColor,
+                            }}
+                            className={`p-3 rounded-2xl border text-xs font-extrabold transition-all flex items-center justify-between cursor-pointer relative overflow-hidden ${
                               isSelected
-                                ? "border-indigo-400 ring-2 ring-slate-900/40 scale-[1.02]"
-                                : "border-white/20 opacity-90 hover:opacity-100"
+                                ? "border-indigo-500 ring-2 ring-indigo-500/30 scale-[1.02] shadow-md"
+                                : isThemeLight
+                                ? "border-slate-300 hover:border-slate-400 opacity-95 hover:opacity-100 shadow-sm"
+                                : "border-white/20 opacity-90 hover:opacity-100 shadow-sm"
                             }`}
                           >
                             <span className="truncate">{theme.name}</span>
-                            {isSelected && <Check size={14} className="text-indigo-400" />}
+                            {isSelected && (
+                              <Check
+                                size={14}
+                                style={{
+                                  color: isThemeLight
+                                    ? "#0f172a"
+                                    : theme.accent || "#6366f1",
+                                }}
+                                className="flex-shrink-0"
+                              />
+                            )}
                           </button>
                         );
                       })}
