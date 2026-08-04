@@ -40,16 +40,13 @@ const SidebarProfile = memo(
           className={`
             bg-white border-r border-gray-200 shadow-xs
             transition-all duration-300 ease-in-out z-40 flex flex-col
-            ${
-              isMobile
-                ? `fixed inset-y-0 left-0 z-50 w-[310px] sm:w-[340px] shadow-2xl h-full ${
-                    isOpen ? "translate-x-0" : "-translate-x-full"
-                  }`
-                : `sticky top-0 h-screen overflow-y-auto ${
-                    isOpen
-                      ? "w-80 opacity-100 shrink-0"
-                      : "w-0 opacity-0 pointer-events-none border-none p-0 overflow-hidden shrink-0"
-                  }`
+            ${isMobile
+              ? `fixed inset-y-0 left-0 z-50 w-[310px] sm:w-[340px] shadow-2xl h-full ${isOpen ? "translate-x-0" : "-translate-x-full"
+              }`
+              : `sticky top-0 h-screen overflow-y-auto ${isOpen
+                ? "w-80 opacity-100 shrink-0"
+                : "w-0 opacity-0 pointer-events-none border-none p-0 overflow-hidden shrink-0"
+              }`
             }
           `}
         >
@@ -108,11 +105,10 @@ const SidebarProfile = memo(
                         `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.email}`
                       }
                       alt={userData.name}
-                      className={`w-32 h-32 rounded-full shadow-lg object-cover bg-white ${
-                        userData.isVerified
+                      className={`w-32 h-32 rounded-full shadow-lg object-cover bg-white ${userData.isVerified
                           ? "border-4 border-emerald-700"
                           : "border-4 border-white"
-                      }`}
+                        }`}
                     />
                     {userData.isVerified && (
                       <div
@@ -172,7 +168,7 @@ const SidebarProfile = memo(
 
               {/* Sidebar Integrated Footer Navigation */}
               <div className="mt-auto border-t border-gray-100 bg-gray-50/70 p-5 space-y-4 text-xs text-gray-600">
-                <div>
+                {/* <div>
                   <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
                     Platform
                   </h4>
@@ -185,9 +181,9 @@ const SidebarProfile = memo(
                     <span className="text-gray-300">•</span>
                     <Link href="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
                   </div>
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
                     Legal
                   </h4>
@@ -200,9 +196,9 @@ const SidebarProfile = memo(
                     <span className="text-gray-300">•</span>
                     <Link href="/shipping-policy" className="hover:text-gray-900 transition-colors">Shipping</Link>
                   </div>
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
                     Connect
                   </h4>
@@ -213,9 +209,9 @@ const SidebarProfile = memo(
                     <span className="text-gray-300">•</span>
                     <a href="https://instagram.com/kavyalok.in" target="_blank" rel="noreferrer" className="hover:text-gray-900 transition-colors">Instagram</a>
                   </div>
-                </div>
+                </div> */}
 
-                <div className="pt-2 border-t border-gray-200/60 text-[11px] text-gray-400 text-center">
+                <div className="border-gray-200/60 text-[11px] text-gray-400 text-center">
                   © {new Date().getFullYear()} Kavyalok. All rights reserved.
                 </div>
               </div>
@@ -252,7 +248,7 @@ const SidebarProfile = memo(
 
               {/* Sidebar Integrated Footer Navigation */}
               <div className="mt-auto border-t border-gray-100 bg-gray-50/70 p-5 space-y-4 text-xs text-gray-600">
-                <div>
+                {/* <div>
                   <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
                     Platform
                   </h4>
@@ -265,9 +261,9 @@ const SidebarProfile = memo(
                     <span className="text-gray-300">•</span>
                     <Link href="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
                   </div>
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
                     Legal
                   </h4>
@@ -280,9 +276,9 @@ const SidebarProfile = memo(
                     <span className="text-gray-300">•</span>
                     <Link href="/shipping-policy" className="hover:text-gray-900 transition-colors">Shipping</Link>
                   </div>
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <h4 className="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[10px]">
                     Connect
                   </h4>
@@ -293,9 +289,9 @@ const SidebarProfile = memo(
                     <span className="text-gray-300">•</span>
                     <a href="https://instagram.com/kavyalok.in" target="_blank" rel="noreferrer" className="hover:text-gray-900 transition-colors">Instagram</a>
                   </div>
-                </div>
+                </div> */}
 
-                <div className="pt-2 border-t border-gray-200/60 text-[11px] text-gray-400 text-center">
+                <div className="border-gray-200/60 text-[11px] text-gray-400 text-center">
                   © {new Date().getFullYear()} Kavyalok. All rights reserved.
                 </div>
               </div>
