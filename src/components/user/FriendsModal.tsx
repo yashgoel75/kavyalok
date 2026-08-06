@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { X, Search, Users, UserCheck, UserPlus, Loader2 } from "lucide-react";
 import { getFirebaseToken } from "@/utils";
 import { User as FirebaseUser } from "firebase/auth";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 interface Friend {
   name: string;
@@ -25,17 +26,7 @@ interface FriendsModalProps {
   initialTab?: "followers" | "following";
 }
 
-// Module-level in-memory cache to prevent repeated network requests
-const friendsCache: Record<
-  string,
-  {
-    followersDetails: Friend[];
-    followingDetails: Friend[];
-    timestamp: number;
-  }
-> = {};
-
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+const PAGE_SIZE = 9;
 
 export default function FriendsModal({
   isOpen,
@@ -49,108 +40,122 @@ export default function FriendsModal({
 
   const [activeTab, setActiveTab] = useState<"followers" | "following">(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
-  const [followersDetails, setFollowersDetails] = useState<Friend[]>([]);
-  const [followingDetails, setFollowingDetails] = useState<Friend[]>([]);
   const [currentUserFollowing, setCurrentUserFollowing] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setActiveTab(initialTab);
+      setSearchQuery("");
     }
   }, [isOpen, initialTab]);
 
-  useEffect(() => {
-    if (!isOpen || !targetEmail) return;
-
-    fetchData();
-  }, [isOpen, targetEmail, currentFirebaseUser?.email]);
-
-  const fetchData = async () => {
-    // 1. Check in-memory cache
-    const cached = friendsCache[targetEmail];
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      setFollowersDetails(cached.followersDetails);
-      setFollowingDetails(cached.followingDetails);
-      setLoading(false);
-
-      // Still ensure currentUserFollowing state is updated
-      if (currentFirebaseUser?.email) {
-        if (currentFirebaseUser.email === targetEmail) {
-          setCurrentUserFollowing(cached.followingDetails.map((f) => f.email));
-        }
-      }
-      return;
-    }
-
-    setLoading(true);
+  // Fetch Current User's following list (for follow/unfollow toggle status)
+  const fetchCurrentUserFollowing = useCallback(async () => {
+    if (!currentFirebaseUser?.email) return;
     try {
-      // Fetch Target User's Friends
-      const res = await fetch(`/api/getuserfriends?email=${encodeURIComponent(targetEmail)}`);
+      const res = await fetch(`/api/getuserfriends?email=${encodeURIComponent(currentFirebaseUser.email)}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load friends");
+      if (res.ok && data.user) {
+        setCurrentUserFollowing(data.user.following || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch current user following:", err);
+    }
+  }, [currentFirebaseUser?.email]);
 
-      const followersList = data.user.followers || [];
-      const followingList = data.user.following || [];
+  useEffect(() => {
+    if (isOpen) {
+      fetchCurrentUserFollowing();
+    }
+  }, [isOpen, fetchCurrentUserFollowing]);
 
-      // Fetch Current User's following list (if logged in)
-      if (currentFirebaseUser?.email) {
-        if (currentFirebaseUser.email === targetEmail) {
-          setCurrentUserFollowing(followingList);
-        } else {
-          const curRes = await fetch(`/api/getuserfriends?email=${encodeURIComponent(currentFirebaseUser.email)}`);
-          const curData = await curRes.json();
-          if (curRes.ok) {
-            setCurrentUserFollowing(curData.user.following || []);
+  // React Query Infinite Followers Query
+  const {
+    data: followersData,
+    fetchNextPage: fetchNextFollowers,
+    hasNextPage: hasNextFollowers,
+    isFetchingNextPage: isFetchingNextFollowers,
+    isLoading: isLoadingFollowers,
+  } = useInfiniteQuery({
+    queryKey: ["user-followers", targetEmail],
+    queryFn: async ({ pageParam = 1 }) => {
+      const res = await fetch(
+        `/api/user/followers?email=${encodeURIComponent(targetEmail)}&page=${pageParam}&limit=${PAGE_SIZE}`
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load followers");
+      return data;
+    },
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+    initialPageParam: 1,
+    enabled: isOpen && !!targetEmail && activeTab === "followers",
+  });
+
+  // React Query Infinite Following Query
+  const {
+    data: followingData,
+    fetchNextPage: fetchNextFollowing,
+    hasNextPage: hasNextFollowing,
+    isFetchingNextPage: isFetchingNextFollowing,
+    isLoading: isLoadingFollowing,
+  } = useInfiniteQuery({
+    queryKey: ["user-following", targetEmail],
+    queryFn: async ({ pageParam = 1 }) => {
+      const res = await fetch(
+        `/api/user/following?email=${encodeURIComponent(targetEmail)}&page=${pageParam}&limit=${PAGE_SIZE}`
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load following");
+      return data;
+    },
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+    initialPageParam: 1,
+    enabled: isOpen && !!targetEmail && activeTab === "following",
+  });
+
+  const followersList = useMemo(() => {
+    return followersData?.pages.flatMap((page) => page.users || []) || [];
+  }, [followersData]);
+
+  const followingList = useMemo(() => {
+    return followingData?.pages.flatMap((page) => page.users || []) || [];
+  }, [followingData]);
+
+  const totalFollowers = followersData?.pages[0]?.total || 0;
+  const totalFollowing = followingData?.pages[0]?.total || 0;
+
+  // Automatic Infinite Scroll IntersectionObserver
+  useEffect(() => {
+    if (!sentinelRef.current || !isOpen) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          if (activeTab === "followers" && hasNextFollowers && !isFetchingNextFollowers) {
+            fetchNextFollowers();
+          } else if (activeTab === "following" && hasNextFollowing && !isFetchingNextFollowing) {
+            fetchNextFollowing();
           }
         }
-      }
+      },
+      { threshold: 0.1 }
+    );
 
-      // Batch Fetch Details
-      const [followers, following] = await Promise.all([
-        fetchFriendDetails(followersList),
-        fetchFriendDetails(followingList),
-      ]);
-
-      setFollowersDetails(followers);
-      setFollowingDetails(following);
-
-      // Save to cache
-      friendsCache[targetEmail] = {
-        followersDetails: followers,
-        followingDetails: following,
-        timestamp: Date.now(),
-      };
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchFriendDetails = async (emails: string[]): Promise<Friend[]> => {
-    if (!emails.length) return [];
-    try {
-      const token = await getFirebaseToken();
-      const res = await fetch("/api/getbatchfriends", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ emails }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        return data.users || [];
-      }
-      return [];
-    } catch (err) {
-      console.error(err);
-      return [];
-    }
-  };
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [
+    isOpen,
+    activeTab,
+    hasNextFollowers,
+    isFetchingNextFollowers,
+    fetchNextFollowers,
+    hasNextFollowing,
+    isFetchingNextFollowing,
+    fetchNextFollowing,
+  ]);
 
   const handleFollowToggle = async (friendEmail: string) => {
     if (!currentFirebaseUser) {
@@ -184,8 +189,6 @@ export default function FriendsModal({
             ? [...prev, friendEmail]
             : prev.filter((e) => e !== friendEmail)
         );
-        // Clear cache so it updates next time
-        delete friendsCache[targetEmail];
       } else {
         alert("Failed to update follow status.");
       }
@@ -196,7 +199,10 @@ export default function FriendsModal({
     }
   };
 
-  const currentList = activeTab === "followers" ? followersDetails : followingDetails;
+  const currentList = activeTab === "followers" ? followersList : followingList;
+  const isLoadingCurrent = activeTab === "followers" ? isLoadingFollowers : isLoadingFollowing;
+  const isFetchingNext = activeTab === "followers" ? isFetchingNextFollowers : isFetchingNextFollowing;
+  const hasMoreCurrent = activeTab === "followers" ? hasNextFollowers : hasNextFollowing;
 
   const filteredList = useMemo(() => {
     if (!searchQuery.trim()) return currentList;
@@ -260,7 +266,7 @@ export default function FriendsModal({
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
               }`}
             >
-              Followers ({followersDetails.length})
+              Followers ({totalFollowers})
             </button>
             <button
               onClick={() => setActiveTab("following")}
@@ -270,7 +276,7 @@ export default function FriendsModal({
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
               }`}
             >
-              Following ({followingDetails.length})
+              Following ({totalFollowing})
             </button>
           </div>
 
@@ -290,7 +296,7 @@ export default function FriendsModal({
 
           {/* Friends List Body */}
           <div className="p-6 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
-            {loading ? (
+            {isLoadingCurrent && currentList.length === 0 ? (
               <div className="space-y-3 py-4">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 animate-pulse">
@@ -306,73 +312,85 @@ export default function FriendsModal({
                 ))}
               </div>
             ) : filteredList.length > 0 ? (
-              filteredList.map((friend) => {
-                const isSelf = currentFirebaseUser?.email === friend.email;
-                const isFollowing = currentUserFollowing.includes(friend.email);
-                const isLoadingAction = !!actionLoading[friend.email];
+              <>
+                {filteredList.map((friend) => {
+                  const isSelf = currentFirebaseUser?.email === friend.email;
+                  const isFollowing = currentUserFollowing.includes(friend.email);
+                  const isLoadingAction = !!actionLoading[friend.email];
 
-                return (
-                  <div
-                    key={friend.email}
-                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/80 transition-all group"
-                  >
+                  return (
                     <div
-                      onClick={() => {
-                        onClose();
-                        router.push(`/user/${friend.username}`);
-                      }}
-                      className="flex items-center gap-3 cursor-pointer flex-1 min-w-0"
+                      key={friend.email}
+                      className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50/80 transition-all group"
                     >
-                      <div className="relative w-11 h-11 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 border border-slate-200">
-                        {friend.profilePicture ? (
-                          <Image
-                            src={friend.profilePicture}
-                            alt={friend.name}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center font-bold text-slate-700 bg-slate-200">
-                            {friend.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-slate-900 text-sm truncate group-hover:text-amber-800 transition-colors">
-                          {friend.name}
-                        </h4>
-                        <p className="text-xs text-slate-500 font-medium truncate">@{friend.username}</p>
-                      </div>
-                    </div>
-
-                    {!isSelf && (
-                      <button
-                        onClick={() => handleFollowToggle(friend.email)}
-                        disabled={isLoadingAction}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer ml-3 flex-shrink-0 ${
-                          isFollowing
-                            ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-                            : "bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
-                        }`}
+                      <div
+                        onClick={() => {
+                          onClose();
+                          router.push(`/user/${friend.username}`);
+                        }}
+                        className="flex items-center gap-3 cursor-pointer flex-1 min-w-0"
                       >
-                        {isLoadingAction ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : isFollowing ? (
-                          <>
-                            <UserCheck size={13} />
-                            <span>Following</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus size={13} />
-                            <span>Follow</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                );
-              })
+                        <div className="relative w-11 h-11 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 border border-slate-200">
+                          {friend.profilePicture ? (
+                            <Image
+                              src={friend.profilePicture}
+                              alt={friend.name}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center font-bold text-slate-700 bg-slate-200">
+                              {friend.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-900 text-sm truncate group-hover:text-amber-800 transition-colors">
+                            {friend.name}
+                          </h4>
+                          <p className="text-xs text-slate-500 font-medium truncate">@{friend.username}</p>
+                        </div>
+                      </div>
+
+                      {!isSelf && (
+                        <button
+                          onClick={() => handleFollowToggle(friend.email)}
+                          disabled={isLoadingAction}
+                          className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer ml-3 flex-shrink-0 ${
+                            isFollowing
+                              ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                              : "bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                          }`}
+                        >
+                          {isLoadingAction ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : isFollowing ? (
+                            <>
+                              <UserCheck size={13} />
+                              <span>Following</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus size={13} />
+                              <span>Follow</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Automatic Infinite Scroll Sentinel */}
+                <div ref={sentinelRef} className="h-6 flex items-center justify-center py-2">
+                  {isFetchingNext && (
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                      <Loader2 size={14} className="animate-spin text-yellow-600" />
+                      <span>Loading more...</span>
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <div className="text-center py-12 text-slate-400">
                 <Users size={32} className="mx-auto mb-2 opacity-50" />

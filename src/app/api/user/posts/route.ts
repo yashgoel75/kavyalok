@@ -29,7 +29,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const posts = await Post.find({ _id: { $in: user.posts } }).sort({ createdAt: -1 });
+    const posts = await Post.find({ _id: { $in: user.posts } })
+      .populate("author", "name username profilePicture isVerified email")
+      .populate("repostedBy", "name username profilePicture isVerified")
+      .sort({ createdAt: -1 })
+      .lean();
 
     return NextResponse.json({ user: { ...user.toObject(), posts } }, { status: 200 });
   } catch (err) {

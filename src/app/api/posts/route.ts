@@ -20,12 +20,18 @@ export async function POST(req: Request) {
         path: "author",
         select: "name username profilePicture isVerified email",
       })
+      .populate({
+        path: "repostedBy",
+        select: "name username profilePicture isVerified",
+      })
       .select({
         title: 1,
         content: 1,
         picture: 1,
         author: 1,
         likes: 1,
+        repostCount: 1,
+        repostedBy: 1,
         comments: 1,
         color: 1,
         createdAt: 1,

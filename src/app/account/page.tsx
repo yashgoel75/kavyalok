@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Header from "@/components/header/page";
 import Footer from "@/components/footer/page";
 import Navigation from "@/components/navigation/page";
@@ -9,36 +9,31 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "@/context/UserContext";
 import {
-  Pin,
-  PinOff,
   Globe,
   Instagram,
   Twitter,
   Youtube,
   Linkedin,
-  MapPin,
-  Feather,
-  BookOpen,
   Edit3,
-  Share2,
   Trash2,
   Plus,
   X,
   ExternalLink,
   Check,
-  Heart,
-  Eye,
-  Clock,
   Camera,
-  Grid,
   Loader2,
   QrCode,
+  ChevronDown,
+  Bookmark as BookmarkIcon,
+  Heart as HeartIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseToken } from "@/utils";
 import CreatePostModal from "@/components/post/CreatePostModal";
 import FriendsModal from "@/components/user/FriendsModal";
 import ProfileCardModal from "@/components/user/ProfileCardModal";
+import PostCard from "@/components/dashboard/PostCard";
+import { getTextColor, getIconColor, getCommentColor } from "@/lib/utils";
 
 interface PrivacySettings {
   isPrivate: boolean;
@@ -53,8 +48,10 @@ interface Post {
   content: string;
   picture?: string;
   likes: number;
+  comments: any;
   color: string;
   createdAt?: string;
+  author?: any;
 }
 
 interface User {
@@ -81,6 +78,8 @@ interface User {
   isVerified?: boolean;
 }
 
+const POSTS_PER_PAGE = 6;
+
 export default function Account() {
   const router = useRouter();
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +90,7 @@ export default function Account() {
   const [loading, setLoading] = useState(globalLoading);
 
   // Modals & Tabs
-  const [activeTab, setActiveTab] = useState<"posts" | "pinned">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "pinned" | "bookmarks" | "liked">("posts");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSocialsModalOpen, setIsSocialsModalOpen] = useState(false);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
@@ -101,6 +100,16 @@ export default function Account() {
     tab: "followers" | "following";
   }>({ isOpen: false, tab: "followers" });
 
+  // Bookmarks & Liked State
+  const [bookmarkedPostsList, setBookmarkedPostsList] = useState<Post[]>([]);
+  const [loadingBookmarks, setLoadingBookmarks] = useState(false);
+
+  const [likedPostsList, setLikedPostsList] = useState<Post[]>([]);
+  const [loadingLiked, setLoadingLiked] = useState(false);
+
+  const [likedPostsMap, setLikedPostsMap] = useState<Record<string, boolean>>({});
+  const [bookmarkedPostsMap, setBookmarkedPostsMap] = useState<Record<string, boolean>>({});
+
   // Delete modal state
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
 
@@ -109,8 +118,11 @@ export default function Account() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [pinningPostId, setPinningPostId] = useState<string | null>(null);
 
-  // Copy indicators
-  const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
+  // Pagination states
+  const [postsPage, setPostsPage] = useState(1);
+  const [pinnedPage, setPinnedPage] = useState(1);
+  const [bookmarksPage, setBookmarksPage] = useState(1);
+  const [likedPage, setLikedPage] = useState(1);
 
   useEffect(() => {
     if (!globalLoading && !firebaseUser) {
@@ -121,6 +133,8 @@ export default function Account() {
   useEffect(() => {
     if (firebaseUser?.email) {
       fetchUserPosts(firebaseUser.email);
+      fetchUserBookmarks(firebaseUser.email);
+      fetchUserLikedPosts(firebaseUser.email);
     }
   }, [firebaseUser]);
 
@@ -141,6 +155,88 @@ export default function Account() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserBookmarks = async (email: string) => {
+    setLoadingBookmarks(true);
+    try {
+      const token = await getFirebaseToken();
+      const userRes = await fetch(
+        `/api/getUserBookmarks?email=${encodeURIComponent(email)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const userJSON = await userRes.json();
+      if (!userRes.ok) throw new Error(userJSON.error || "Failed to load bookmarks");
+
+      const bookmarkIds = userJSON?.user?.bookmarks || [];
+      if (bookmarkIds.length === 0) {
+        setBookmarkedPostsList([]);
+        return;
+      }
+
+      const postsRes = await fetch(`/api/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: bookmarkIds }),
+      });
+
+      const postsJSON = await postsRes.json();
+      if (postsRes.ok && postsJSON.posts) {
+        setBookmarkedPostsList(postsJSON.posts);
+        const bMap: Record<string, boolean> = {};
+        postsJSON.posts.forEach((p: Post) => (bMap[p._id] = true));
+        setBookmarkedPostsMap((prev) => ({ ...prev, ...bMap }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch bookmarks", err);
+    } finally {
+      setLoadingBookmarks(false);
+    }
+  };
+
+  const fetchUserLikedPosts = async (email: string) => {
+    setLoadingLiked(true);
+    try {
+      const token = await getFirebaseToken();
+      const userRes = await fetch(
+        `/api/getUserLikes?email=${encodeURIComponent(email)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const userJSON = await userRes.json();
+      if (!userRes.ok) throw new Error(userJSON.error || "Failed to load liked posts");
+
+      const likeIds = userJSON?.user?.likes || [];
+      if (likeIds.length === 0) {
+        setLikedPostsList([]);
+        return;
+      }
+
+      const postsRes = await fetch(`/api/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: likeIds }),
+      });
+
+      const postsJSON = await postsRes.json();
+      if (postsRes.ok && postsJSON.posts) {
+        setLikedPostsList(postsJSON.posts);
+        const lMap: Record<string, boolean> = {};
+        postsJSON.posts.forEach((p: Post) => (lMap[p._id] = true));
+        setLikedPostsMap((prev) => ({ ...prev, ...lMap }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch liked posts", err);
+    } finally {
+      setLoadingLiked(false);
     }
   };
 
@@ -245,10 +341,55 @@ export default function Account() {
           pinnedPosts: prev.pinnedPosts?.filter((id) => id !== postId),
         };
       });
+      setBookmarkedPostsList((prev) => prev.filter((p) => p._id !== postId));
       setDeletingPostId(null);
     } catch (err) {
       console.error(err);
       alert("Failed to delete post.");
+    }
+  };
+
+  const handleLike = async (postId: string) => {
+    if (!firebaseUser?.email) return;
+    const isLiked = !!likedPostsMap[postId];
+    setLikedPostsMap((prev) => ({ ...prev, [postId]: !isLiked }));
+
+    try {
+      const token = await getFirebaseToken();
+      await fetch(`/api/post/like`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: firebaseUser.email, postId }),
+      });
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+    }
+  };
+
+  const handleBookmark = async (postId: string) => {
+    if (!firebaseUser?.email) return;
+    const isBookmarked = !!bookmarkedPostsMap[postId];
+    setBookmarkedPostsMap((prev) => ({ ...prev, [postId]: !isBookmarked }));
+
+    if (isBookmarked) {
+      setBookmarkedPostsList((prev) => prev.filter((p) => p._id !== postId));
+    }
+
+    try {
+      const token = await getFirebaseToken();
+      await fetch(`/api/post/bookmark`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: firebaseUser.email, postId }),
+      });
+    } catch (err) {
+      console.error("Failed to toggle bookmark:", err);
     }
   };
 
@@ -309,22 +450,14 @@ export default function Account() {
     }
   };
 
-  const handleCopyPostLink = (id: string) => {
-    const url = `${window.location.origin}/post/${id}`;
-    navigator.clipboard.writeText(url);
-    setCopiedPostId(id);
-    setTimeout(() => setCopiedPostId(null), 2000);
-  };
-
-  const getTextColor = (hex: string) => {
-    if (!hex) return "#0f172a";
-    hex = hex.replace("#", "");
-    if (hex.length === 3) hex = hex.split("").map((c) => c + c).join("");
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    return brightness > 128 ? "#0f172a" : "#ffffff";
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   if (loading || globalLoading) {
@@ -351,6 +484,12 @@ export default function Account() {
 
   const pinnedPostIds = userData.pinnedPosts || [];
   const pinnedPostsList = userData.posts?.filter((p) => pinnedPostIds.includes(p._id)) || [];
+
+  // Paginated Slices
+  const visiblePosts = (userData.posts || []).slice(0, postsPage * POSTS_PER_PAGE);
+  const visiblePinned = pinnedPostsList.slice(0, pinnedPage * POSTS_PER_PAGE);
+  const visibleBookmarks = bookmarkedPostsList.slice(0, bookmarksPage * POSTS_PER_PAGE);
+  const visibleLiked = likedPostsList.slice(0, likedPage * POSTS_PER_PAGE);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-between selection:bg-slate-900 selection:text-white font-sans">
@@ -402,7 +541,7 @@ export default function Account() {
             />
           </div>
 
-          {/* User Info & Instagram Style Inline Metrics */}
+          {/* User Info & Inline Metrics */}
           <div className="flex-1 text-center md:text-left space-y-4 w-full">
             {/* Username + Action Buttons */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -417,7 +556,7 @@ export default function Account() {
                 )}
               </div>
 
-              {/* Instagram & Pinterest Style Larger Action Buttons */}
+              {/* Action Buttons */}
               <div className="flex items-center justify-center md:justify-end gap-3 flex-wrap">
                 <button
                   onClick={() => setIsEditModalOpen(true)}
@@ -427,7 +566,6 @@ export default function Account() {
                   <span>Edit profile</span>
                 </button>
 
-                {/* Spotify-style Visual Profile Card Trigger */}
                 <button
                   onClick={() => setIsProfileCardOpen(true)}
                   className="px-6 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 text-xs sm:text-sm font-extrabold border border-slate-200/80 transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
@@ -446,7 +584,7 @@ export default function Account() {
               </div>
             </div>
 
-            {/* Instagram Style Inline Metric Counters */}
+            {/* Inline Metric Counters */}
             <div className="flex items-center justify-center md:justify-start gap-6 text-sm sm:text-base font-semibold text-slate-900 pt-1">
               <div>
                 <span className="font-extrabold">{userData.posts?.length || 0}</span>{" "}
@@ -486,152 +624,135 @@ export default function Account() {
           </div>
         </div>
 
-        {/* Story Highlights & Filter Bar */}
+        {/* Clean Icon-free Navigation Filter Bar */}
         <div className="flex items-center gap-3 overflow-x-auto pb-4 mb-8 no-scrollbar border-b border-slate-100">
           <button
-            onClick={() => setActiveTab("posts")}
-            className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer flex items-center gap-2 ${
+            onClick={() => {
+              setActiveTab("posts");
+              setPostsPage(1);
+            }}
+            className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
               activeTab === "posts"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <Grid size={14} />
             <span>Posts ({userData.posts?.length || 0})</span>
           </button>
 
           {pinnedPostsList.length > 0 && (
             <button
-              onClick={() => setActiveTab("pinned")}
-              className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer flex items-center gap-2 ${
+              onClick={() => {
+                setActiveTab("pinned");
+                setPinnedPage(1);
+              }}
+              className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
                 activeTab === "pinned"
                   ? "bg-slate-900 text-white shadow-sm"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              <Pin size={14} />
               <span>Pinned ({pinnedPostsList.length})</span>
             </button>
           )}
 
           <button
-            onClick={() => setIsSocialsModalOpen(true)}
-            className="px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer flex items-center gap-2"
+            onClick={() => {
+              setActiveTab("bookmarks");
+              setBookmarksPage(1);
+            }}
+            className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
+              activeTab === "bookmarks"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
           >
-            <Globe size={14} />
+            <span>Bookmarks ({bookmarkedPostsList.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("liked");
+              setLikedPage(1);
+            }}
+            className={`px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
+              activeTab === "liked"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <span>Liked ({likedPostsList.length})</span>
+          </button>
+
+          <button
+            onClick={() => setIsSocialsModalOpen(true)}
+            className="px-6 py-2.5 rounded-full text-xs font-extrabold tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer"
+          >
             <span>Social Links</span>
           </button>
         </div>
 
-        {/* Pinterest-Style Posts Grid - Expanded Card Sizes */}
+        {/* Posts Tab with Polished PostCard components */}
         {activeTab === "posts" && (
           <div>
             {userData.posts && userData.posts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
-                {userData.posts.map((post) => {
-                  const isPinned = pinnedPostIds.includes(post._id);
-                  const wordCount = post.content?.replace(/<[^>]*>?/gm, " ").split(/\s+/).filter(Boolean).length || 0;
-                  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
-                  const isDarkText = getTextColor(post.color || "#ffffff") !== "#ffffff";
-
-                  return (
-                    <motion.div
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
+                  {visiblePosts.map((post) => (
+                    <PostCard
                       key={post._id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      style={{
-                        backgroundColor: post.color || "#ffffff",
-                        color: getTextColor(post.color || "#ffffff"),
+                      post={{
+                        ...post,
+                        author: {
+                          name: userData.name,
+                          username: userData.username,
+                          profilePicture: userData.profilePicture,
+                          email: userData.email,
+                          isVerified: !!userData.isVerified,
+                        } as any,
+                        comments: post.comments || [],
                       }}
-                      className={`relative rounded-3xl p-7 sm:p-8 shadow-md hover:shadow-2xl transition-all border ${
-                        isPinned ? "border-slate-900 ring-2 ring-slate-900/20" : "border-slate-200/80"
-                      } flex flex-col justify-between group cursor-pointer overflow-hidden`}
-                      onClick={() => router.push(`/post/${post._id}`)}
-                    >
-                      {/* Top Badges */}
-                      <div className="flex items-center justify-between mb-4">
-                        {isPinned ? (
-                          <span className="bg-slate-900 text-white px-3.5 py-1 rounded-full font-extrabold text-xs flex items-center gap-1 shadow-xs">
-                            <Pin size={11} />
-                            <span>Pinned</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs opacity-70 font-semibold">{readingTime} min read</span>
-                        )}
+                      firebaseUser={firebaseUser}
+                      userData={userData as any}
+                      likedPosts={likedPostsMap}
+                      bookmarkedPosts={bookmarkedPostsMap}
+                      defaultPostColor="null"
+                      handleLike={handleLike}
+                      handleBookmark={handleBookmark}
+                      getTextColor={getTextColor}
+                      getIconColor={getIconColor}
+                      getCommentColor={getCommentColor}
+                      getInitials={getInitials}
+                      router={router}
+                      isPinned={pinnedPostIds.includes(post._id)}
+                      onTogglePin={() => handleTogglePin(post._id)}
+                      onDelete={() => setDeletingPostId(post._id)}
+                    />
+                  ))}
+                </div>
 
-                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleTogglePin(post._id)}
-                            disabled={pinningPostId === post._id}
-                            className="p-2 rounded-xl bg-black/5 hover:bg-black/10 transition-colors"
-                            title={isPinned ? "Unpin Post" : "Pin Post"}
-                          >
-                            {isPinned ? <PinOff size={15} /> : <Pin size={15} />}
-                          </button>
-                          <button
-                            onClick={() => setDeletingPostId(post._id)}
-                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 transition-colors"
-                            title="Delete Post"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mb-5">
-                        <h3 className="text-xl sm:text-2xl font-extrabold hover:underline mb-2 leading-snug">
-                          {post.title}
-                        </h3>
-
-                        <div className="flex items-center gap-3 text-xs opacity-80 mb-4 font-bold">
-                          <span className="flex items-center gap-1">
-                            <Heart size={14} className={isDarkText ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
-                            {post.likes} Likes
-                          </span>
-                        </div>
-
-                        {post.picture && (
-                          <div className="relative w-full h-56 rounded-2xl overflow-hidden mb-4 border border-black/10">
-                            <Image src={post.picture} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                          </div>
-                        )}
-
-                        <div
-                          className="text-sm line-clamp-3 opacity-90 leading-relaxed font-normal"
-                          dangerouslySetInnerHTML={{ __html: post.content }}
-                        />
-                      </div>
-
-                      {/* Card Footer Actions */}
-                      <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-extrabold">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/post/${post._id}`);
-                          }}
-                          className="px-4 py-2 rounded-xl bg-black/10 hover:bg-black/20 transition-colors flex items-center gap-1.5"
-                        >
-                          <Eye size={15} />
-                          <span>View Post</span>
-                        </button>
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyPostLink(post._id);
-                          }}
-                          className="px-4 py-2 rounded-xl bg-black/10 hover:bg-black/20 transition-colors flex items-center gap-1.5"
-                        >
-                          <Share2 size={15} />
-                          <span>{copiedPostId === post._id ? "Copied Link" : "Share"}</span>
-                        </button>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
+                {/* Automatic Infinite Scroll Sentinel */}
+                {visiblePosts.length < (userData.posts?.length || 0) && (
+                  <div
+                    ref={(el) => {
+                      if (!el) return;
+                      const observer = new IntersectionObserver(
+                        (entries) => {
+                          if (entries[0].isIntersecting) {
+                            setPostsPage((p) => p + 1);
+                          }
+                        },
+                        { threshold: 0.1 }
+                      );
+                      observer.observe(el);
+                    }}
+                    className="h-8 flex items-center justify-center my-4"
+                  >
+                    <Loader2 size={18} className="animate-spin text-slate-400" />
+                  </div>
+                )}
+              </>
             ) : (
-              /* Instagram / Pinterest Style Empty State */
               <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex flex-col items-center justify-center">
                 <div className="w-20 h-20 rounded-full border-2 border-slate-900 flex items-center justify-center mb-5 text-slate-900">
                   <Camera size={36} strokeWidth={1.5} />
@@ -652,81 +773,214 @@ export default function Account() {
           </div>
         )}
 
-        {/* Pinned Posts Grid */}
+        {/* Pinned Posts Tab */}
         {activeTab === "pinned" && (
           <div>
-            {pinnedPostsList.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
-                {pinnedPostsList.map((post) => (
-                  <motion.div
-                    key={post._id}
-                    initial={{ opacity: 0, scale: 0.97 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    style={{
-                      backgroundColor: post.color || "#ffffff",
-                      color: getTextColor(post.color || "#ffffff"),
+            {pinnedPostsList.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
+                  {visiblePinned.map((post) => (
+                    <PostCard
+                      key={post._id}
+                      post={{
+                        ...post,
+                        author: {
+                          name: userData.name,
+                          username: userData.username,
+                          profilePicture: userData.profilePicture,
+                          email: userData.email,
+                          isVerified: !!userData.isVerified,
+                        } as any,
+                        comments: post.comments || [],
+                      }}
+                      firebaseUser={firebaseUser}
+                      userData={userData as any}
+                      likedPosts={likedPostsMap}
+                      bookmarkedPosts={bookmarkedPostsMap}
+                      defaultPostColor="null"
+                      handleLike={handleLike}
+                      handleBookmark={handleBookmark}
+                      getTextColor={getTextColor}
+                      getIconColor={getIconColor}
+                      getCommentColor={getCommentColor}
+                      getInitials={getInitials}
+                      router={router}
+                      isPinned={true}
+                      onTogglePin={() => handleTogglePin(post._id)}
+                      onDelete={() => setDeletingPostId(post._id)}
+                    />
+                  ))}
+                </div>
+
+                {visiblePinned.length < pinnedPostsList.length && (
+                  <div
+                    ref={(el) => {
+                      if (!el) return;
+                      const observer = new IntersectionObserver(
+                        (entries) => {
+                          if (entries[0].isIntersecting) {
+                            setPinnedPage((p) => p + 1);
+                          }
+                        },
+                        { threshold: 0.1 }
+                      );
+                      observer.observe(el);
                     }}
-                    className="relative rounded-3xl p-7 sm:p-8 shadow-xl border-2 border-slate-900 flex flex-col justify-between cursor-pointer"
-                    onClick={() => router.push(`/post/${post._id}`)}
+                    className="h-8 flex items-center justify-center my-4"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="bg-slate-900 text-white px-3.5 py-1 rounded-full font-extrabold text-xs flex items-center gap-1">
-                        <Pin size={11} />
-                        <span>Pinned Post</span>
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTogglePin(post._id);
-                        }}
-                        className="p-2 rounded-xl bg-black/10 hover:bg-black/20"
-                      >
-                        <PinOff size={15} />
-                      </button>
-                    </div>
+                    <Loader2 size={18} className="animate-spin text-slate-400" />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs">
+                <p className="text-slate-500 text-sm font-medium">No pinned posts yet.</p>
+              </div>
+            )}
+          </div>
+        )}
 
-                    <div className="mb-5">
-                      <h3 className="text-xl sm:text-2xl font-extrabold hover:underline mb-2 leading-snug">
-                        {post.title}
-                      </h3>
-
-                      <div className="flex items-center gap-3 text-xs opacity-80 mb-4 font-bold">
-                        <span className="flex items-center gap-1">
-                          <Heart size={14} className={getTextColor(post.color || "#ffffff") !== "#ffffff" ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
-                          {post.likes} Likes
-                        </span>
-                      </div>
-
-                      {post.picture && (
-                        <div className="relative w-full h-56 rounded-2xl overflow-hidden mb-4 border border-black/10">
-                          <Image src={post.picture} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                        </div>
-                      )}
-
-                      <div
-                        className="text-sm line-clamp-3 opacity-90 leading-relaxed font-normal"
-                        dangerouslySetInnerHTML={{ __html: post.content }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-extrabold">
-                      <span className="flex items-center gap-1">
-                        <Heart size={15} className={getTextColor(post.color || "#ffffff") !== "#ffffff" ? "text-rose-600 fill-rose-600" : "text-rose-400 fill-rose-400"} />
-                        {post.likes} Likes
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyPostLink(post._id);
-                        }}
-                        className="px-4 py-2 bg-black/10 rounded-xl flex items-center gap-1.5"
-                      >
-                        <Share2 size={14} />
-                        <span>{copiedPostId === post._id ? "Copied" : "Share"}</span>
-                      </button>
-                    </div>
-                  </motion.div>
+        {/* Bookmarks Tab */}
+        {activeTab === "bookmarks" && (
+          <div>
+            {loadingBookmarks ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-64 bg-slate-200 rounded-3xl animate-pulse" />
                 ))}
+              </div>
+            ) : bookmarkedPostsList.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
+                  {visibleBookmarks.map((post) => (
+                    <PostCard
+                      key={post._id}
+                      post={{
+                        ...post,
+                        author: post.author || {
+                          name: "Author",
+                          username: "author",
+                        },
+                        comments: post.comments || [],
+                      }}
+                      firebaseUser={firebaseUser}
+                      userData={userData as any}
+                      likedPosts={likedPostsMap}
+                      bookmarkedPosts={{ ...bookmarkedPostsMap, [post._id]: true }}
+                      defaultPostColor="null"
+                      handleLike={handleLike}
+                      handleBookmark={handleBookmark}
+                      getTextColor={getTextColor}
+                      getIconColor={getIconColor}
+                      getCommentColor={getCommentColor}
+                      getInitials={getInitials}
+                      router={router}
+                    />
+                  ))}
+                </div>
+
+                {visibleBookmarks.length < bookmarkedPostsList.length && (
+                  <div
+                    ref={(el) => {
+                      if (!el) return;
+                      const observer = new IntersectionObserver(
+                        (entries) => {
+                          if (entries[0].isIntersecting) {
+                            setBookmarksPage((p) => p + 1);
+                          }
+                        },
+                        { threshold: 0.1 }
+                      );
+                      observer.observe(el);
+                    }}
+                    className="h-8 flex items-center justify-center my-4"
+                  >
+                    <Loader2 size={18} className="animate-spin text-slate-400" />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-slate-400">
+                  <BookmarkIcon size={28} />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900 mb-1">No Bookmarks Saved</h3>
+                <p className="text-slate-500 text-xs max-w-xs font-medium">
+                  Posts you bookmark will appear here for easy access later.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Liked Tab */}
+        {activeTab === "liked" && (
+          <div>
+            {loadingLiked ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-64 bg-slate-200 rounded-3xl animate-pulse" />
+                ))}
+              </div>
+            ) : likedPostsList.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
+                  {visibleLiked.map((post) => (
+                    <PostCard
+                      key={post._id}
+                      post={{
+                        ...post,
+                        author: post.author || {
+                          name: "Author",
+                          username: "author",
+                        },
+                        comments: post.comments || [],
+                      }}
+                      firebaseUser={firebaseUser}
+                      userData={userData as any}
+                      likedPosts={{ ...likedPostsMap, [post._id]: true }}
+                      bookmarkedPosts={bookmarkedPostsMap}
+                      defaultPostColor="null"
+                      handleLike={handleLike}
+                      handleBookmark={handleBookmark}
+                      getTextColor={getTextColor}
+                      getIconColor={getIconColor}
+                      getCommentColor={getCommentColor}
+                      getInitials={getInitials}
+                      router={router}
+                    />
+                  ))}
+                </div>
+
+                {visibleLiked.length < likedPostsList.length && (
+                  <div
+                    ref={(el) => {
+                      if (!el) return;
+                      const observer = new IntersectionObserver(
+                        (entries) => {
+                          if (entries[0].isIntersecting) {
+                            setLikedPage((p) => p + 1);
+                          }
+                        },
+                        { threshold: 0.1 }
+                      );
+                      observer.observe(el);
+                    }}
+                    className="h-8 flex items-center justify-center my-4"
+                  >
+                    <Loader2 size={18} className="animate-spin text-slate-400" />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-slate-400">
+                  <HeartIcon size={28} />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900 mb-1">No Liked Posts Yet</h3>
+                <p className="text-slate-500 text-xs max-w-xs font-medium">
+                  Posts you like across Kavyalok will appear here.
+                </p>
               </div>
             )}
           </div>
@@ -978,7 +1232,10 @@ export default function Account() {
         onClose={() => setIsCreatePostOpen(false)}
         firebaseUser={firebaseUser}
         onPostCreated={() => {
-          if (firebaseUser?.email) fetchUserPosts(firebaseUser.email);
+          if (firebaseUser?.email) {
+            fetchUserPosts(firebaseUser.email);
+            fetchUserBookmarks(firebaseUser.email);
+          }
         }}
       />
 

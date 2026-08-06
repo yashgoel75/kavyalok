@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Check, MessageCircle, Send, Repeat2, Bookmark } from "lucide-react";
+import { Check, MessageCircle, Send, Repeat2, Bookmark, Pin, PinOff, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { User } from "@/context/UserContext";
@@ -41,6 +41,9 @@ interface PostCardProps {
   getInitials: (name: string) => string;
   router: AppRouterInstance;
   onOpenInteractions?: (tab: "likes" | "reposts" | "comments", postId: string, title: string) => void;
+  isPinned?: boolean;
+  onTogglePin?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 export default React.memo(function PostCard({
@@ -57,6 +60,9 @@ export default React.memo(function PostCard({
   getInitials,
   router,
   onOpenInteractions,
+  isPinned = false,
+  onTogglePin,
+  onDelete,
 }: PostCardProps) {
   const [showShareOptions, setShowShareOptions] = useState(false);
   const readingTime = Math.ceil((post.content || "").split(" ").length / 200);
@@ -106,11 +112,24 @@ export default React.memo(function PostCard({
     (post.repostedByAuthors && post.repostedByAuthors.length > 0) ||
     post.repostedByAuthor;
 
-  const topReposterName =
-    post.repostedByAuthor?.username ||
-    post.repostedByAuthors?.[0]?.username ||
-    (typeof post.repostedBy?.[0] === "object" ? (post.repostedBy[0] as any).username : null) ||
-    "writer";
+  const reposterObj =
+    (post.repostedBy && post.repostedBy.length > 0 && post.repostedBy[post.repostedBy.length - 1]) ||
+    post.repostedByAuthor ||
+    (post.repostedByAuthors && post.repostedByAuthors[0]) ||
+    (post.repostedBy && post.repostedBy[0]);
+
+  let reposterUsername = "";
+  if (reposterObj) {
+    if (typeof reposterObj === "object" && reposterObj) {
+      reposterUsername = reposterObj.username || reposterObj.name || "";
+    } else if (typeof reposterObj === "string" && !/^[0-9a-fA-F]{24}$/.test(reposterObj)) {
+      reposterUsername = reposterObj.includes("@") ? reposterObj.split("@")[0] : reposterObj;
+    }
+  }
+
+  if (!reposterUsername || /^[0-9a-fA-F]{24}$/.test(reposterUsername)) {
+    reposterUsername = post.author?.username || post.author?.name || "a user";
+  }
 
   const totalReposters = post.repostCount || post.repostedByAuthors?.length || (hasReposts ? 1 : 0);
 
@@ -121,10 +140,6 @@ export default React.memo(function PostCard({
   const commentColor = getCommentColor(activeColor);
   const repostColor = getRepostColor(activeColor, isRepostedByUser);
   const bookmarkColor = getBookmarkColor(activeColor, isBookmarked);
-
-  const reposterUsername =
-    (post.repostedBy && post.repostedBy.length > 0 && post.repostedBy[post.repostedBy.length - 1]?.username) ||
-    topReposterName;
 
   const reposterExtraCount =
     post.repostedBy && post.repostedBy.length > 1 ? post.repostedBy.length - 1 : 0;
@@ -139,7 +154,7 @@ export default React.memo(function PostCard({
       onClick={() => {
         if (showShareOptions) setShowShareOptions(false);
       }}
-      className="bg-white relative p-5 sm:p-6 rounded-3xl shadow-xs hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col justify-between border border-black/5 hover:-translate-y-0.5"
+      className="bg-white relative p-4 sm:p-5 rounded-2xl shadow-xs hover:shadow-lg transition-all duration-300 overflow-hidden group flex flex-col justify-between border border-black/5 hover:-translate-y-0.5"
     >
       <div>
         {/* Adaptive High Contrast Repost Header Badge */}
@@ -149,7 +164,7 @@ export default React.memo(function PostCard({
               e.stopPropagation();
               onOpenInteractions?.("reposts", post._id, post.title);
             }}
-            className={`flex items-center gap-2 text-xs font-bold mb-3.5 px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+            className={`flex items-center gap-2 text-xs font-bold mb-3 px-2.5 py-1 rounded-xl border transition-all cursor-pointer ${
               isWhiteText
                 ? "bg-white/20 text-white border-white/30 hover:bg-white/30"
                 : "bg-emerald-50 text-emerald-950 border-emerald-200 hover:bg-emerald-100/80"
@@ -161,7 +176,7 @@ export default React.memo(function PostCard({
                 isWhiteText ? "bg-white/30 text-white" : "bg-emerald-600 text-white"
               }`}
             >
-              <Repeat2 size={12} className="stroke-[2.5]" />
+              <Repeat2 size={11} className="stroke-[2.5]" />
             </div>
             <span className="truncate">
               Reposted by <span className="font-extrabold">@{reposterUsername}</span>
@@ -218,6 +233,37 @@ export default React.memo(function PostCard({
               <span className="text-[11px] opacity-75 block font-medium">@{post.author.username}</span>
             </div>
           </div>
+
+          {(onTogglePin || onDelete || isPinned) && (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              {isPinned && (
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[10px] font-extrabold flex items-center gap-1">
+                  <Pin size={10} />
+                  <span>Pinned</span>
+                </span>
+              )}
+              {onTogglePin && (
+                <button
+                  type="button"
+                  onClick={() => onTogglePin(post._id)}
+                  className="p-1.5 rounded-xl bg-black/5 hover:bg-black/10 transition-colors cursor-pointer"
+                  title={isPinned ? "Unpin Post" : "Pin Post"}
+                >
+                  {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(post._id)}
+                  className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 transition-colors cursor-pointer"
+                  title="Delete Post"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Card Body */}
@@ -229,20 +275,20 @@ export default React.memo(function PostCard({
               : router.push(`/post/${post._id}`);
           }}
         >
-          <h4 className="text-xl font-bold mb-1.5 leading-snug">{post.title}</h4>
+          <h4 className="text-lg font-bold mb-1 leading-snug line-clamp-2">{post.title}</h4>
           <span className="text-[11px] mb-2 block font-medium opacity-75">{readingTime} min read</span>
           <p
-            className="text-sm mb-3 leading-relaxed font-normal opacity-90"
+            className="text-xs sm:text-sm mb-2.5 leading-relaxed font-normal opacity-90 line-clamp-2"
             dangerouslySetInnerHTML={{
               __html:
-                post.content?.length > 120
-                  ? post.content.slice(0, 120) + "..."
+                post.content?.length > 100
+                  ? post.content.slice(0, 100) + "..."
                   : post.content,
             }}
           ></p>
 
           {post.picture && (
-            <div className="relative w-full h-48 mb-3 rounded-xl overflow-hidden shadow-xs border border-black/5">
+            <div className="relative w-full h-36 sm:h-40 mb-2.5 rounded-xl overflow-hidden shadow-xs border border-black/5">
               <Image
                 loading="lazy"
                 src={post.picture}
