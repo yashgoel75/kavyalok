@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, User as UserIcon, BookOpen, ArrowRight, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { trackSearch } from "@/lib/analytics";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -52,8 +53,14 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
       const res = await fetch(`/api/search?query=${encodeURIComponent(searchTerm.trim())}`);
       const data = await res.json();
       if (res.ok) {
-        setUsers(data.users || []);
-        setPosts(data.posts || []);
+        const foundUsers = data.users || [];
+        const foundPosts = data.posts || [];
+        setUsers(foundUsers);
+        setPosts(foundPosts);
+        trackSearch({
+          query: searchTerm.trim(),
+          resultsCount: foundUsers.length + foundPosts.length,
+        });
       }
     } catch (err) {
       console.error("Search error:", err);

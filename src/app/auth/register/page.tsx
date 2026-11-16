@@ -12,6 +12,7 @@ import Header from "../header/page";
 import Footer from "../footer/page";
 import { AtSign } from "lucide-react";
 import { CheckCircle } from "lucide-react";
+import { trackUserAuth } from "@/lib/analytics";
 
 export default function Member() {
   const router = useRouter();
@@ -143,6 +144,7 @@ export default function Member() {
       const res = await axios.post("/api/register/member", formData);
       if (res.status === 200) {
         setSuccess(true);
+        trackUserAuth({ method: "email", type: "register", email: formData.email });
         setTimeout(() => router.push("/auth/login"), 1500);
       }
       setCreatingUser(false);

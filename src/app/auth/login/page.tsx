@@ -15,6 +15,7 @@ import Header from "../header/page";
 import Footer from "../footer/page";
 import { auth } from "@/lib/firebase";
 import { Check } from "lucide-react";
+import { trackUserAuth } from "@/lib/analytics";
 
 interface Post {
   _id: string;
@@ -172,6 +173,7 @@ export default function Login() {
       }
 
       setSuccess(true);
+      trackUserAuth({ method: "email", type: "login", email: formData.email });
       setTimeout(() => router.replace("/dashboard"), 1500);
     } catch (err) {
       setError(true);

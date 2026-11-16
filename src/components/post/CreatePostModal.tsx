@@ -7,6 +7,7 @@ import Image from "next/image";
 import { X, Feather, Upload, Loader2, Sparkles, Image as ImageIcon, Tag, Palette } from "lucide-react";
 import { getFirebaseToken } from "@/utils";
 import { User as FirebaseUser } from "firebase/auth";
+import { trackPostCreate } from "@/lib/analytics";
 
 const QuillEditor = dynamic(() => import("@/components/TestEditor"), {
   ssr: false,
@@ -169,6 +170,14 @@ export default function CreatePostModal({
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create post");
+
+      trackPostCreate({
+        postId: data.post?._id || data.id,
+        title,
+        tagsCount: tags.length,
+        hasCoverImage: !!coverImage,
+        wordCount: content.replace(/<[^>]*>/g, " ").trim().split(/\s+/).length,
+      });
 
       // Reset Form & Close
       setTitle("");

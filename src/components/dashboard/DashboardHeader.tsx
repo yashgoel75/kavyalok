@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { LogOut, Search, UserIcon, Menu, X, Bell, Trophy, PanelLeft } from "lucide-react";
+import { LogOut, Search, UserIcon, Menu, X, Bell, Trophy, PanelLeft, BarChart3 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import GradientText from "@/components/GradientText";
@@ -203,6 +203,15 @@ export default function DashboardHeader({
                             className="w-full text-left px-3.5 py-2 hover:bg-gray-50 rounded-xl flex items-center gap-2.5 text-xs font-bold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer"
                           >
                             <UserIcon size={16} /> Account
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              router.push("/analytics");
+                            }}
+                            className="w-full text-left px-3.5 py-2 hover:bg-amber-50 text-amber-900 rounded-xl flex items-center gap-2.5 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <BarChart3 size={16} className="text-amber-600" /> Analytics & Insights
                           </button>
                           <button
                             onClick={() => {

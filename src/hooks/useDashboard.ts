@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import { getFirebaseToken } from "@/utils";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { trackPostLike, trackPostBookmark, trackPostRepost } from "@/lib/analytics";
 
 export interface User {
   name: string;
@@ -231,7 +232,9 @@ export function useDashboard() {
     if (!requireAuth(undefined, "Log In to Like Posts", "Log in to show appreciation for creative pieces.")) return;
     if (!user) return;
 
-    setLikedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
+    const nextLiked = !likedPosts[postId];
+    setLikedPosts((prev) => ({ ...prev, [postId]: nextLiked }));
+    trackPostLike({ postId, liked: nextLiked, author: user.displayName || user.email || undefined });
 
     try {
       const token = await getFirebaseToken();
@@ -260,7 +263,9 @@ export function useDashboard() {
     if (!requireAuth(undefined, "Log In to Bookmark", "Save your favorite poems, stories, and posts to read anytime.")) return;
     if (!user) return;
 
-    setBookmarkedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
+    const nextBookmarked = !bookmarkedPosts[postId];
+    setBookmarkedPosts((prev) => ({ ...prev, [postId]: nextBookmarked }));
+    trackPostBookmark({ postId, bookmarked: nextBookmarked });
 
     try {
       const token = await getFirebaseToken();
@@ -287,6 +292,7 @@ export function useDashboard() {
     const newStatus = !isCurrentlyReposted;
 
     setRepostedPosts((prev) => ({ ...prev, [postId]: newStatus }));
+    trackPostRepost({ postId, author: user.displayName || user.email || undefined });
 
     try {
       const token = await getFirebaseToken();

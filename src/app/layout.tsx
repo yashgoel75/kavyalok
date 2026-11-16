@@ -7,6 +7,7 @@ import "./globals.css";
 import PageTransitionWrapper from "@/components/PageTransitionWrapper";
 import { UserProvider } from "@/context/UserContext";
 import QueryProvider from "@/components/providers/QueryProvider";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -41,6 +42,7 @@ export default function RootLayout({
               {children}
               <Analytics />
               <SpeedInsights />
+              <GoogleAnalytics />
             </PageTransitionWrapper>
           </UserProvider>
         </QueryProvider>

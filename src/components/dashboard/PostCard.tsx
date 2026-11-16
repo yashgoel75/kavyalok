@@ -6,6 +6,8 @@ import Image from "next/image";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { User } from "@/context/UserContext";
 import { getTextColor, getIconColor, getCommentColor, getRepostColor, getBookmarkColor } from "@/lib/utils";
+import { trackPostShare } from "@/lib/analytics";
+import PostImpressionTracker from "@/components/analytics/PostImpressionTracker";
 
 interface Post {
   _id: string;
@@ -85,6 +87,12 @@ export default React.memo(function PostCard({
   const handleShare = (platform: string) => {
     const postUrl = `${window.location.origin}/post/${post._id}`;
 
+    trackPostShare({
+      postId: post._id,
+      platform: platform === "whatsapp" ? "whatsapp" : "copy_link",
+      title: post.title,
+    });
+
     if (platform === "whatsapp") {
       window.open(
         `https://wa.me/?text=${encodeURIComponent(postUrl)}`,
@@ -156,6 +164,12 @@ export default React.memo(function PostCard({
       }}
       className="bg-white relative p-4 sm:p-5 rounded-2xl shadow-xs hover:shadow-lg transition-all duration-300 overflow-hidden group flex flex-col justify-between border border-black/5 hover:-translate-y-0.5"
     >
+      <PostImpressionTracker
+        postId={post._id}
+        title={post.title}
+        authorName={post.author?.name}
+        userEmail={userData?.email}
+      />
       <div>
         {/* Adaptive High Contrast Repost Header Badge */}
         {hasReposts && (

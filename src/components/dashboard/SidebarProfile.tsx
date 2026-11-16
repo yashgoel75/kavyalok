@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import Link from "next/link";
-import { Check, X } from "lucide-react";
+import { Check, X, BarChart3 } from "lucide-react";
 import GradientText from "@/components/GradientText";
 import { User } from "@/hooks/useDashboard";
 import { useUser } from "@/context/UserContext";
@@ -164,6 +164,23 @@ const SidebarProfile = memo(
                     <div className="text-xs text-gray-500 mt-1">Following</div>
                   </Link>
                 </div>
+
+                {/* Analytics Quick Access */}
+                <div className="px-6 py-3 border-b border-gray-100">
+                  <Link
+                    href="/analytics"
+                    onClick={isMobile ? onClose : undefined}
+                    className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/60 text-amber-900 text-xs font-bold transition shadow-xs group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <BarChart3 size={16} className="text-amber-600 group-hover:scale-110 transition-transform" />
+                      <span>Analytics & Insights</span>
+                    </div>
+                    <span className="text-[10px] bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-full font-semibold">
+                      Live
+                    </span>
+                  </Link>
+                </div>
               </div>
 
               {/* Sidebar Integrated Footer Navigation */}
@@ -242,6 +259,23 @@ const SidebarProfile = memo(
                     className="block w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl transition cursor-pointer text-center"
                   >
                     Create Account
+                  </Link>
+                </div>
+
+                {/* Analytics Quick Access */}
+                <div className="px-6 py-3 border-b border-gray-100">
+                  <Link
+                    href="/analytics"
+                    onClick={isMobile ? onClose : undefined}
+                    className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/60 text-amber-900 text-xs font-bold transition shadow-xs group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <BarChart3 size={16} className="text-amber-600 group-hover:scale-110 transition-transform" />
+                      <span>Analytics & Insights</span>
+                    </div>
+                    <span className="text-[10px] bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-full font-semibold">
+                      Live
+                    </span>
                   </Link>
                 </div>
               </div>
