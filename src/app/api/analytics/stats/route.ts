@@ -194,7 +194,6 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 6. Hourly Reader Activity Heatmap (0 - 23h)
     const hourlyDistribution = Array.from({ length: 24 }, (_, hour) => {
       // Poetry/reading peaks typically in late afternoon & evening (18:00 - 23:00)
       let weight = 0.2;
